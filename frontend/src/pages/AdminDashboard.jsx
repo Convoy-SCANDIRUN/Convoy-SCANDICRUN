@@ -5,7 +5,7 @@ import MapView from "@/components/MapView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert } from "lucide-react";
 
@@ -147,6 +147,9 @@ export default function AdminDashboard() {
                             <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white">
                                 <DialogHeader>
                                     <DialogTitle className="font-display text-2xl uppercase tracking-tight">Create Event</DialogTitle>
+                                    <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                                        Set up a new road trip and share its code.
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <form onSubmit={submitEvent} className="space-y-4" data-testid="create-event-form">
                                     <div>

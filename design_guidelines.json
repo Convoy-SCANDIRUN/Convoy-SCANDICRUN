@@ -1,0 +1,125 @@
+{
+  "theme_and_archetype": {
+    "theme": "Dark",
+    "archetype": "Archetype 2: The Performance Pro",
+    "vibe": "Tactical Command Center, high-visibility, elite performance, secure",
+    "rationale": "For a real-time location tracking dashboard with emergency/SOS functionalities, a dark 'command center' interface provides maximum contrast for glowing map markers (yellow/red), reduces eye strain for nighttime driving, and communicates tactical reliability."
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Barlow Condensed",
+      "body": "Inter"
+    },
+    "rules": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "body": "text-base leading-relaxed tracking-wide",
+      "labels": "text-xs uppercase tracking-[0.2em] font-bold"
+    }
+  },
+  "colors": {
+    "background": {
+      "default": "#0A0A0A",
+      "surface": "#141414",
+      "overlay": "rgba(0,0,0,0.6)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "inverse": "#000000"
+    },
+    "accents": {
+      "primary": "#007AFF",
+      "help": "#FFCC00",
+      "sos": "#FF3B30",
+      "success": "#34C759"
+    },
+    "borders": {
+      "default": "rgba(255,255,255,0.1)",
+      "focus": "#007AFF"
+    },
+    "rules": [
+      "Avoid muddy gray transparency. Use crisp solid surfaces or heavily saturated glassmorphism.",
+      "The 'Help' and 'SOS' states must use their respective colors strictly for buttons, markers, and toast notifications."
+    ]
+  },
+  "layout_and_spacing": {
+    "grid_system": "MODE B: THE 'CONTROL ROOM' GRID",
+    "spacing_scale": "p-2, p-4, p-6, p-8, p-12",
+    "strategies": [
+      "Mobile-First for Participant view (Full screen map with massive bottom floating action buttons).",
+      "Desktop-First for Admin view (Sidebar panels overlapping the full-width map).",
+      "Optical Alignment: Ensure floating map controls have extra padding relative to screen edges."
+    ]
+  },
+  "surfaces_and_micro_themes": {
+    "panels": {
+      "style": "GRID BORDERS (The 'Technical' Look) or Flat Solid",
+      "classes": "bg-[#141414] border border-white/10 rounded-none shadow-none"
+    },
+    "floating_controls": {
+      "style": "GLASSMORPHISM (The 'Crystal' Variant)",
+      "classes": "bg-black/60 backdrop-blur-xl backdrop-saturate-150 border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#007AFF] hover:bg-[#005bb5] text-white font-bold rounded-none border border-[#007AFF]/50 px-6 py-3 transition-colors",
+      "help": "bg-[#FFCC00] hover:bg-[#E6B800] text-black font-bold text-xl rounded-none px-8 py-6 shadow-[0_0_15px_rgba(255,204,0,0.5)] transition-all data-[testid=help-btn]",
+      "sos": "bg-[#FF3B30] hover:bg-[#D32F2F] text-white font-black text-xl rounded-none px-8 py-6 shadow-[0_0_20px_rgba(255,59,48,0.7)] transition-all animate-pulse data-[testid=sos-btn]"
+    },
+    "inputs": "bg-transparent border border-white/20 focus:border-[#007AFF] text-white rounded-none h-12 px-4 focus:ring-1 focus:ring-[#007AFF]/50",
+    "map_markers": {
+      "default": "border-2 border-[#007AFF] rounded-full overflow-hidden shadow-[0_0_10px_rgba(0,122,255,0.5)]",
+      "help": "border-2 border-[#FFCC00] rounded-full overflow-hidden shadow-[0_0_20px_rgba(255,204,0,0.8)] animate-[pulse_2s_infinite]",
+      "sos": "border-2 border-[#FF3B30] rounded-full overflow-hidden shadow-[0_0_30px_rgba(255,59,48,1)] animate-[ping_1.5s_infinite_reverse]"
+    },
+    "toast": "bg-[#141414] border-l-4 border-[#FF3B30] text-white rounded-none font-medium"
+  },
+  "map_styling": {
+    "provider": "Leaflet with react-leaflet",
+    "tiles": "CartoDB Dark Matter (https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png)",
+    "attribution": "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>",
+    "UI_integration": "Map zoom controls should be styled to match the dark theme (invert colors or custom CSS). Use a full-screen viewport (`h-screen w-screen`) with absolute positioned UI panels layered over the map (`z-[1000]`)."
+  },
+  "assets_and_images": {
+    "hero_backgrounds": [
+      {
+        "url": "https://images.unsplash.com/photo-1766198971304-32d71f18745c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwyfHx3aW5kaW5nJTIwcm9hZCUyMG1vdW50YWluJTIwZGFya3xlbnwwfHx8fDE3Nzc5OTQ1Nzh8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Empty road at night with a single street light.",
+        "usage": "Login screen background, dark overlaid with bg-black/50"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1763058136934-e92c758a5498?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwxfHx3aW5kaW5nJTIwcm9hZCUyMG1vdW50YWluJTIwZGFya3xlbnwwfHx8fDE3Nzc5OTQ1Nzh8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Snowy road leading through dark landscape at dusk",
+        "usage": "Admin default event creation image."
+      }
+    ],
+    "dashboard_images": [
+      {
+        "url": "https://images.unsplash.com/photo-1634743556192-d19f0c69ff3a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHw0fHxyb2FkJTIwdHJpcCUyMHRyYWNraW5nJTIwbWFwJTIwZGFzaGJvYXJkfGVufDB8fHx8MTc3Nzk5NDU2MHww&ixlib=rb-4.1.0&q=85",
+        "description": "a car dashboard with a gps device in the middle of it",
+        "usage": "Dashboard empty state or promotional section for app."
+      }
+    ],
+    "profile_pictures": [
+      {
+        "url": "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHxwZXJzb24lMjBwcm9maWxlJTIwZmFjZSUyMHBvcnRyYWl0fGVufDB8fHx8MTc3Nzk5NDU3OHww&ixlib=rb-4.1.0&q=85",
+        "description": "a black and white photo of a woman's face",
+        "usage": "Default profile picture or placeholder for map markers."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: Use CartoDB Dark Matter tile layer for the Leaflet map to ensure the UI contrasts effectively with the map background.",
+    "Use Phosphor Icons (@phosphor-icons/react) for a high-end, crisp tactical look.",
+    "Data structure for participant markers must include status (normal, help, sos). Render custom HTML icons using Leaflet's divIcon to inject Tailwind classes (pulse, glow effects, borders) around the participant's profile image.",
+    "For the Participant Dashboard: The 'I need help' (yellow) and 'SOS' (red) buttons must be massive, floating at the bottom of the screen (mobile-first), highly accessible. Use Glassmorphism containers behind them if they overlap the map.",
+    "For the Admin Dashboard: Use the 'Control Room' Grid. Have a floating tactical sidebar overlaying the map with the list of participants and their current status.",
+    "All forms (registration/login) must use Shadcn components customized with brutalist/sharp corners (rounded-none), dark backgrounds, and 1px white/10 borders.",
+    "Implement Sonner toast notifications (styled dark) that trigger for all users when someone hits SOS or Help.",
+    "Add 'data-testid' to all buttons, map markers, forms, and inputs for testing (e.g., data-testid='sos-button', data-testid='help-button', data-testid='participant-marker-help').",
+    "Use standard HTML+Tailwind for overall app layout structuring, and heavily customized Shadcn components for forms, inputs, tabs, and tables."
+  ]
+}

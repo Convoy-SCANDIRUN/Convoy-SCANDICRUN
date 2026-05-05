@@ -1,75 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
     margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
+    background: #0A0A0A;
+    color: #FFFFFF;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+.font-display {
+    font-family: 'Barlow Condensed', sans-serif;
 }
 
 @layer base {
     :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
+        --background: 0 0% 4%;
+        --foreground: 0 0% 100%;
+        --card: 0 0% 8%;
+        --card-foreground: 0 0% 100%;
+        --popover: 0 0% 8%;
+        --popover-foreground: 0 0% 100%;
+        --primary: 211 100% 50%;
+        --primary-foreground: 0 0% 100%;
         --secondary: 0 0% 14.9%;
         --secondary-foreground: 0 0% 98%;
         --muted: 0 0% 14.9%;
         --muted-foreground: 0 0% 63.9%;
         --accent: 0 0% 14.9%;
         --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
+        --destructive: 4 100% 60%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 0 0% 100% / 0.1;
+        --input: 0 0% 100% / 0.1;
+        --ring: 211 100% 50%;
+        --radius: 0;
     }
 }
 
@@ -77,39 +47,106 @@ code {
     * {
         @apply border-border;
     }
-    body {
-        @apply bg-background text-foreground;
-    }
 }
 
-@layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
+/* Tactical scanline */
+.tactical-grid {
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
 
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
+/* Glass panel */
+.glass {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Custom Leaflet marker overrides */
+.leaflet-container {
+    background: #0A0A0A !important;
+    font-family: 'Inter', sans-serif;
+}
+.leaflet-control-zoom a {
+    background: rgba(0, 0, 0, 0.7) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+.leaflet-control-attribution {
+    background: rgba(0, 0, 0, 0.7) !important;
+    color: #999 !important;
+}
+.leaflet-control-attribution a {
+    color: #999 !important;
+}
+
+.participant-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.marker-pic {
+    width: 48px;
+    height: 48px;
+    border-radius: 9999px;
+    object-fit: cover;
+    border: 2px solid #007AFF;
+    box-shadow: 0 0 12px rgba(0, 122, 255, 0.6);
+    background: #141414;
+}
+.marker-pic.help {
+    border-color: #FFCC00;
+    box-shadow: 0 0 24px rgba(255, 204, 0, 0.95);
+    animation: pulse-help 2s infinite;
+}
+.marker-pic.sos {
+    border-color: #FF3B30;
+    box-shadow: 0 0 32px rgba(255, 59, 48, 1);
+    animation: pulse-sos 1.2s infinite;
+}
+.marker-label {
+    margin-top: 4px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.marker-glow-help, .marker-glow-sos {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    inset: -16px;
+    z-index: -1;
+}
+.marker-glow-help {
+    background: radial-gradient(circle, rgba(255, 204, 0, 0.55) 0%, rgba(255, 204, 0, 0) 70%);
+    animation: glow-help 2s infinite;
+}
+.marker-glow-sos {
+    background: radial-gradient(circle, rgba(255, 59, 48, 0.7) 0%, rgba(255, 59, 48, 0) 70%);
+    animation: glow-sos 1.2s infinite;
+}
+
+@keyframes pulse-help {
+    0%, 100% { box-shadow: 0 0 16px rgba(255, 204, 0, 0.7); }
+    50% { box-shadow: 0 0 32px rgba(255, 204, 0, 1); }
+}
+@keyframes pulse-sos {
+    0%, 100% { box-shadow: 0 0 24px rgba(255, 59, 48, 0.8); }
+    50% { box-shadow: 0 0 48px rgba(255, 59, 48, 1); }
+}
+@keyframes glow-help {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.4); opacity: 1; }
+}
+@keyframes glow-sos {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.6); opacity: 1; }
 }

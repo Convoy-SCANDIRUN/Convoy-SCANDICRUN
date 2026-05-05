@@ -8,8 +8,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, MapPin } from "lucide-react";
 
-function JoinForm({ onJoined }) {
-    const [code, setCode] = useState("");
+function readPendingCode() {
+    return sessionStorage.getItem("rt_pending_event_code") || "";
+}
+
+function JoinForm({ onJoined, prefillCode = "" }) {
+    const [code, setCode] = useState(prefillCode);
     const [event, setEvent] = useState(null);
     const [teamNumber, setTeamNumber] = useState("");
     const [teamName, setTeamName] = useState("");
@@ -17,6 +21,22 @@ function JoinForm({ onJoined }) {
     const [last, setLast] = useState("");
     const [pic, setPic] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+
+    // Auto-lookup if a code was prefilled (e.g., via /join/:code)
+    useEffect(() => {
+        if (prefillCode && !event) {
+            (async () => {
+                try {
+                    const { data } = await api.get(`/events/by-code/${prefillCode.toUpperCase()}`);
+                    setEvent(data);
+                    sessionStorage.removeItem("rt_pending_event_code");
+                } catch (_) {
+                    /* fall through to manual entry */
+                }
+            })();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [prefillCode]);
 
     const lookup = async () => {
         if (!code) return;
@@ -213,11 +233,11 @@ export default function ParticipantDashboard() {
     };
 
     if (showJoin || (events.length === 0)) {
-        return <JoinForm onJoined={() => { setShowJoin(false); loadEvents(); }} />;
+        return <JoinForm onJoined={() => { setShowJoin(false); loadEvents(); }} prefillCode={readPendingCode()} />;
     }
     if (events.length && !myReg && activeEvent) {
         // user has events but not registered for current — should not normally hit this branch
-        return <JoinForm onJoined={() => { setShowJoin(false); loadEvents(); loadMyReg(); }} />;
+        return <JoinForm onJoined={() => { setShowJoin(false); loadEvents(); loadMyReg(); }} prefillCode={readPendingCode()} />;
     }
 
     const placedCount = registrations.filter((r) => r.lat != null).length;

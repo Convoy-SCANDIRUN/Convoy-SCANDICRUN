@@ -5,6 +5,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ParticipantDashboard from "@/pages/ParticipantDashboard";
+import JoinRedirect from "@/pages/JoinRedirect";
 import { Toaster } from "@/components/ui/sonner";
 
 function Protected({ children, role }) {
@@ -38,6 +39,7 @@ export default function App() {
                     <Route path="/" element={<RootRedirect />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/join/:code" element={<JoinRedirect />} />
                     <Route path="/admin" element={<Protected role="admin"><AdminDashboard /></Protected>} />
                     <Route path="/participant" element={<Protected role="participant"><ParticipantDashboard /></Protected>} />
                 </Routes>

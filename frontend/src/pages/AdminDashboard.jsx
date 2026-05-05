@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function AdminDashboard() {
     const { user, logout } = useAuth();
@@ -24,6 +25,46 @@ export default function AdminDashboard() {
     const [creating, setCreating] = useState(false);
 
     const active = useMemo(() => events.find((e) => e.id === activeId), [events, activeId]);
+    const [shareEvent, setShareEvent] = useState(null);
+    const shareUrl = shareEvent ? `${window.location.origin}/join/${shareEvent.code}` : "";
+
+    const copyShareUrl = async () => {
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            toast.success("Link copied");
+        } catch {
+            toast.error("Could not copy");
+        }
+    };
+
+    const printPoster = () => {
+        const w = window.open("", "_blank", "width=800,height=900");
+        if (!w) return;
+        const canvas = document.querySelector("canvas[data-qr='share']");
+        const dataUrl = canvas ? canvas.toDataURL("image/png") : "";
+        w.document.write(`
+            <html><head><title>${shareEvent.name} — Join Poster</title>
+            <style>
+                @page { margin: 24mm; }
+                body { font-family: 'Helvetica Neue', sans-serif; text-align: center; color: #000; padding: 40px; }
+                h1 { font-size: 48px; letter-spacing: -1px; margin: 0 0 8px; text-transform: uppercase; }
+                .sub { letter-spacing: 0.4em; font-size: 12px; color: #666; text-transform: uppercase; }
+                .code { font-size: 72px; font-weight: 900; letter-spacing: 12px; margin: 24px 0 8px; }
+                img { width: 360px; height: 360px; margin-top: 24px; }
+                .url { margin-top: 16px; font-size: 14px; color: #333; word-break: break-all; }
+                .foot { margin-top: 40px; font-size: 11px; letter-spacing: 0.3em; color: #999; text-transform: uppercase; }
+            </style></head><body>
+                <div class="sub">Convoy · Tactical Tracker</div>
+                <h1>${shareEvent.name}</h1>
+                <div class="sub">Scan or enter code to join</div>
+                <div class="code">${shareEvent.code}</div>
+                <img src="${dataUrl}" alt="QR" />
+                <div class="url">${shareUrl}</div>
+                <div class="foot">${shareEvent.start_date} → ${shareEvent.end_date}</div>
+                <script>window.onload = () => { setTimeout(() => window.print(), 300); };</script>
+            </body></html>`);
+        w.document.close();
+    };
 
     const loadEvents = async () => {
         const { data } = await api.get("/events");
@@ -204,11 +245,19 @@ export default function AdminDashboard() {
                                         </p>
                                         <p className="text-[10px] text-zinc-500 mt-0.5">{e.start_date} → {e.end_date}</p>
                                     </div>
-                                    <button onClick={(ev) => { ev.stopPropagation(); deleteEvent(e.id); }}
-                                            data-testid={`delete-event-${e.id}`}
-                                            className="text-zinc-500 hover:text-[#FF3B30] transition">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex flex-col gap-1">
+                                        <button onClick={(ev) => { ev.stopPropagation(); setShareEvent(e); }}
+                                                data-testid={`share-event-${e.id}`}
+                                                title="Share / QR"
+                                                className="text-zinc-500 hover:text-[#007AFF] transition">
+                                            <Share2 className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={(ev) => { ev.stopPropagation(); deleteEvent(e.id); }}
+                                                data-testid={`delete-event-${e.id}`}
+                                                className="text-zinc-500 hover:text-[#FF3B30] transition">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -276,6 +325,53 @@ export default function AdminDashboard() {
                     <p className="text-xs text-zinc-400 mt-2">Create an event to start tracking your convoy.</p>
                 </div>
             )}
+
+            <Dialog open={!!shareEvent} onOpenChange={(o) => !o && setShareEvent(null)}>
+                <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md" data-testid="share-dialog">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">Share Event</DialogTitle>
+                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                            Teams scan the code or open the link to join.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {shareEvent && (
+                        <div className="space-y-5">
+                            <div className="text-center">
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Event Code</p>
+                                <p className="font-display text-5xl font-black tracking-[0.3em] text-[#007AFF]" data-testid="share-event-code">
+                                    {shareEvent.code}
+                                </p>
+                            </div>
+                            <div className="flex justify-center bg-white p-4">
+                                <QRCodeCanvas
+                                    value={shareUrl}
+                                    size={220}
+                                    level="M"
+                                    includeMargin={false}
+                                    data-qr="share"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 border border-white/15 px-3 py-2">
+                                <code className="text-xs text-zinc-300 truncate flex-1" data-testid="share-url">{shareUrl}</code>
+                                <button onClick={copyShareUrl} data-testid="copy-share-url"
+                                        className="text-zinc-400 hover:text-white p-1">
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Button onClick={copyShareUrl} variant="ghost" data-testid="copy-link-button"
+                                        className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em] h-11">
+                                    <Copy className="w-3 h-3 mr-2" /> Copy Link
+                                </Button>
+                                <Button onClick={printPoster} data-testid="print-poster-button"
+                                        className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em] h-11">
+                                    <Printer className="w-3 h-3 mr-2" /> Print Poster
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

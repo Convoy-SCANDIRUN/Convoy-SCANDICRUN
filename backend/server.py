@@ -85,6 +85,7 @@ class RegisterIn(BaseModel):
     password: str
     role: str = "participant"  # "admin" or "participant"
     name: Optional[str] = None
+    admin_code: Optional[str] = None  # required when role == "admin"
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -140,6 +141,10 @@ async def register(body: RegisterIn, response: Response):
         raise HTTPException(status_code=400, detail="Email already registered")
     if body.role not in ("admin", "participant"):
         raise HTTPException(status_code=400, detail="Invalid role")
+    if body.role == "admin":
+        expected = os.environ.get("ADMIN_REGISTRATION_PASSWORD")
+        if not expected or body.admin_code != expected:
+            raise HTTPException(status_code=403, detail="Invalid administrator code")
     user = {
         "id": str(uuid.uuid4()),
         "email": email,
@@ -397,7 +402,7 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origin_regex=".*",
     allow_methods=["*"],
     allow_headers=["*"],
 )

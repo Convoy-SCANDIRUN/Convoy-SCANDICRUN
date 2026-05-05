@@ -96,6 +96,11 @@ export default function Login() {
                         Create one
                     </Link>
                 </p>
+                <p className="mt-2 text-center text-xs">
+                    <Link to="/forgot-password" className="text-zinc-500 hover:text-zinc-300 uppercase tracking-[0.25em]" data-testid="forgot-password-link">
+                        Forgot password?
+                    </Link>
+                </p>
             </div>
         </div>
     );

@@ -98,6 +98,13 @@ class LocationIn(BaseModel):
 class HelpIn(BaseModel):
     status: str  # "help", "sos", "clear"
 
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
 # ---------- App ----------
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -180,6 +187,64 @@ async def logout(response: Response):
 @api_router.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return user
+
+# ---------- Password Reset ----------
+@api_router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordIn, request: Request):
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email})
+    # Always return ok (don't leak which emails are registered)
+    if not user:
+        logger.info(f"[forgot-password] No account found for {email}")
+        return {"ok": True}
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    await db.password_reset_tokens.insert_one({
+        "token": token,
+        "user_id": user["id"],
+        "email": email,
+        "expires_at": expires_at,
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    # Build a frontend reset link based on the request origin
+    origin = request.headers.get("origin") or request.headers.get("referer", "").rstrip("/")
+    reset_link = f"{origin}/reset-password?token={token}" if origin else f"/reset-password?token={token}"
+    logger.info(f"[forgot-password] Reset link for {email}: {reset_link}")
+
+    # NOTE: No email provider wired yet — return the link directly so users
+    # can complete reset during MVP/testing. Replace this with email sending
+    # once an email integration (Resend/SendGrid) is added.
+    return {"ok": True, "reset_link": reset_link}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordIn):
+    record = await db.password_reset_tokens.find_one({"token": body.token})
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+    if record.get("used"):
+        raise HTTPException(status_code=400, detail="This reset link has already been used")
+    expires_at = record["expires_at"]
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Reset link has expired")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    await db.users.update_one(
+        {"id": record["user_id"]},
+        {"$set": {"password_hash": hash_password(body.password)}},
+    )
+    await db.password_reset_tokens.update_one(
+        {"token": body.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"ok": True}
 
 # ---------- Events ----------
 @api_router.post("/events")
@@ -369,6 +434,8 @@ async def startup():
     await db.events.create_index("code", unique=True)
     await db.registrations.create_index("id", unique=True)
     await db.registrations.create_index([("event_id", 1), ("user_id", 1)], unique=True)
+    await db.password_reset_tokens.create_index("token", unique=True)
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@roadtrip.com").lower()

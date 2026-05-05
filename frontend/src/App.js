@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ParticipantDashboard from "@/pages/ParticipantDashboard";
 import JoinRedirect from "@/pages/JoinRedirect";
@@ -39,6 +41,8 @@ export default function App() {
                     <Route path="/" element={<RootRedirect />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/join/:code" element={<JoinRedirect />} />
                     <Route path="/admin" element={<Protected role="admin"><AdminDashboard /></Protected>} />
                     <Route path="/participant" element={<Protected role="participant"><ParticipantDashboard /></Protected>} />

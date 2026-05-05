@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, MapPin } from "lucide-react";
+import { Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, MapPin, X } from "lucide-react";
 
 function readPendingCode() {
     return sessionStorage.getItem("rt_pending_event_code") || "";
 }
 
-function JoinForm({ onJoined, prefillCode = "" }) {
+function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "" }) {
     const [code, setCode] = useState(prefillCode);
     const [event, setEvent] = useState(null);
     const [teamNumber, setTeamNumber] = useState("");
@@ -74,7 +74,18 @@ function JoinForm({ onJoined, prefillCode = "" }) {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-6 tactical-grid">
-            <div className="w-full max-w-lg glass p-8" data-testid="join-form-card">
+            <div className="w-full max-w-lg glass p-8 relative" data-testid="join-form-card">
+                {onCancel && (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        data-testid="join-close-button"
+                        aria-label="Close"
+                        className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                )}
                 <div className="flex items-center gap-3 mb-6">
                     <Compass className="w-7 h-7 text-[#007AFF]" />
                     <div>
@@ -95,6 +106,17 @@ function JoinForm({ onJoined, prefillCode = "" }) {
                                 className="w-full rounded-none h-12 bg-[#007AFF] hover:bg-[#005bb5] uppercase tracking-[0.2em] font-bold">
                             Find Event
                         </Button>
+                        {onCancel && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={onCancel}
+                                data-testid="join-cancel-button"
+                                className="w-full rounded-none h-12 border border-white/15 hover:bg-white/5 uppercase tracking-[0.2em] text-xs"
+                            >
+                                {hasJoinedEvents ? "Cancel" : "Sign out"}
+                            </Button>
+                        )}
                     </div>
                 ) : (
                     <form onSubmit={submit} className="space-y-4" data-testid="register-event-form">
@@ -233,11 +255,26 @@ export default function ParticipantDashboard() {
     };
 
     if (showJoin || (events.length === 0)) {
-        return <JoinForm onJoined={() => { setShowJoin(false); loadEvents(); }} prefillCode={readPendingCode()} />;
+        const hasJoined = events.length > 0;
+        return (
+            <JoinForm
+                onJoined={() => { setShowJoin(false); loadEvents(); }}
+                onCancel={() => { hasJoined ? setShowJoin(false) : logout(); }}
+                hasJoinedEvents={hasJoined}
+                prefillCode={readPendingCode()}
+            />
+        );
     }
     if (events.length && !myReg && activeEvent) {
         // user has events but not registered for current — should not normally hit this branch
-        return <JoinForm onJoined={() => { setShowJoin(false); loadEvents(); loadMyReg(); }} prefillCode={readPendingCode()} />;
+        return (
+            <JoinForm
+                onJoined={() => { setShowJoin(false); loadEvents(); loadMyReg(); }}
+                onCancel={() => setShowJoin(false)}
+                hasJoinedEvents={true}
+                prefillCode={readPendingCode()}
+            />
+        );
     }
 
     const placedCount = registrations.filter((r) => r.lat != null).length;

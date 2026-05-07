@@ -11,8 +11,114 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+
+function EditEventDialog({ event, onClose, onSaved }) {
+    const [name, setName] = useState("");
+    const [start, setStart] = useState("");
+    const [end, setEnd] = useState("");
+    const [emergencyPhone, setEmergencyPhone] = useState("");
+    const [image, setImage] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (event) {
+            setName(event.name || "");
+            setStart(event.start_date || "");
+            setEnd(event.end_date || "");
+            setEmergencyPhone(event.emergency_phone || "");
+            setImage(null);
+        }
+    }, [event]);
+
+    const submit = async (e) => {
+        e.preventDefault();
+        if (!event) return;
+        setSubmitting(true);
+        try {
+            const fd = new FormData();
+            fd.append("name", name);
+            fd.append("start_date", start);
+            fd.append("end_date", end);
+            fd.append("emergency_phone", emergencyPhone);
+            if (image) fd.append("image", image);
+            const { data } = await api.put(`/events/${event.id}`, fd, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            toast.success("Event updated");
+            onSaved && onSaved(data);
+            onClose();
+        } catch (err) {
+            toast.error(formatApiError(err));
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={!!event} onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white" data-testid="edit-event-dialog">
+                <DialogHeader>
+                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">Edit Event</DialogTitle>
+                    <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                        Update name, dates, emergency phone or cover image.
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={submit} className="space-y-4" data-testid="edit-event-form">
+                    <div>
+                        <Label className="text-xs uppercase tracking-[0.2em]">Name</Label>
+                        <Input value={name} onChange={(e) => setName(e.target.value)} required
+                               data-testid="edit-event-name-input"
+                               className="bg-transparent rounded-none border-white/20 h-11" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label className="text-xs uppercase tracking-[0.2em]">Start</Label>
+                            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} required
+                                   data-testid="edit-event-start-input"
+                                   className="bg-transparent rounded-none border-white/20 h-11" />
+                        </div>
+                        <div>
+                            <Label className="text-xs uppercase tracking-[0.2em]">End</Label>
+                            <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} required
+                                   data-testid="edit-event-end-input"
+                                   className="bg-transparent rounded-none border-white/20 h-11" />
+                        </div>
+                    </div>
+                    <div>
+                        <Label className="text-xs uppercase tracking-[0.2em]">Emergency phone</Label>
+                        <Input type="tel" value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)}
+                               data-testid="edit-event-emergency-phone-input"
+                               className="bg-transparent rounded-none border-white/20 h-11" />
+                    </div>
+                    <div>
+                        <Label className="text-xs uppercase tracking-[0.2em]">Replace cover image (optional)</Label>
+                        <Input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)}
+                               data-testid="edit-event-image-input"
+                               className="bg-transparent rounded-none border-white/20 h-11 file:bg-white/10 file:text-white file:border-0 file:px-3 file:mr-3" />
+                        {event?.image_path && !image && (
+                            <div className="mt-2 flex items-center gap-2">
+                                <img src={fileUrl(event.image_path)} alt="" className="w-12 h-12 rounded object-cover border border-white/20" />
+                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider">current cover</span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="ghost" onClick={onClose}
+                                className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={submitting} data-testid="edit-event-save"
+                                className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em]">
+                            {submitting ? "Saving…" : "Save changes"}
+                        </Button>
+                    </div>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function AdminDashboard() {
     const { user, logout, deleteAccount } = useAuth();
@@ -34,6 +140,7 @@ export default function AdminDashboard() {
 
     const active = useMemo(() => events.find((e) => e.id === activeId), [events, activeId]);
     const [shareEvent, setShareEvent] = useState(null);
+    const [editEvent, setEditEvent] = useState(null);
     const shareUrl = shareEvent ? `${window.location.origin}/join/${shareEvent.code}` : "";
 
     const copyShareUrl = async () => {
@@ -173,34 +280,45 @@ export default function AdminDashboard() {
 
     return (
         <div className="h-screen w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
-            {/* Topbar */}
-            <header className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-6 py-4 glass border-b border-white/10">
-                <div className="flex items-center gap-3">
-                    <Compass className="w-6 h-6 text-[#007AFF]" />
-                    <div>
-                        <p className="font-display text-xl font-black uppercase leading-none">Command Center</p>
+            {/* Topbar — safe-top adds env(safe-area-inset-top) padding so iOS PWA status bar doesn't overlap */}
+            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 glass border-b border-white/10 safe-top">
+                <div className="flex items-center gap-3 min-w-0">
+                    {active?.image_path ? (
+                        <img src={fileUrl(active.image_path)} alt=""
+                             className="w-10 h-10 rounded-full object-cover border border-[#007AFF]/40 flex-shrink-0"
+                             data-testid="topbar-event-image"
+                             onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : (
+                        <Compass className="w-6 h-6 text-[#007AFF]" />
+                    )}
+                    <div className="min-w-0">
+                        <p className="font-display text-xl font-black uppercase leading-none truncate">
+                            {active?.name || "Command Center"}
+                        </p>
                         <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-1">Admin · {user?.name}</p>
                     </div>
                 </div>
-                <Button onClick={logout} variant="ghost" data-testid="logout-button"
-                        className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">
-                    <LogOut className="w-4 h-4 mr-2" /> Logout
-                </Button>
-                <Button variant="ghost"
-                        onClick={() => setConfirmAction({
-                            title: "Delete your admin account?",
-                            description: "Your account and any pending password-reset tokens will be permanently removed. Events you created will remain (other admins keep access).",
-                            confirmLabel: "Delete account",
-                            destructive: true,
-                            run: async () => {
-                                try { await deleteAccount(); toast.success("Account deleted"); }
-                                catch (err) { toast.error(formatApiError(err)); }
-                            },
-                        })}
-                        data-testid="delete-account-button"
-                        className="ml-2 rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em]">
-                    <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button onClick={logout} variant="ghost" data-testid="logout-button"
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">
+                        <LogOut className="w-4 h-4 mr-2" /> Logout
+                    </Button>
+                    <Button variant="ghost"
+                            onClick={() => setConfirmAction({
+                                title: "Delete your admin account?",
+                                description: "Your account and any pending password-reset tokens will be permanently removed. Events you created will remain (other admins keep access).",
+                                confirmLabel: "Delete account",
+                                destructive: true,
+                                run: async () => {
+                                    try { await deleteAccount(); toast.success("Account deleted"); }
+                                    catch (err) { toast.error(formatApiError(err)); }
+                                },
+                            })}
+                            data-testid="delete-account-button"
+                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em]">
+                        <Trash2 className="w-4 h-4" />
+                    </Button>
+                </div>
             </header>
 
             {/* Map fills viewport */}
@@ -299,6 +417,12 @@ export default function AdminDashboard() {
                                         <p className="text-[10px] text-zinc-500 mt-0.5">{e.start_date} → {e.end_date}</p>
                                     </div>
                                     <div className="flex flex-col gap-1">
+                                        <button onClick={(ev) => { ev.stopPropagation(); setEditEvent(e); }}
+                                                data-testid={`edit-event-${e.id}`}
+                                                title="Edit event"
+                                                className="text-zinc-500 hover:text-[#007AFF] transition">
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
                                         <button onClick={(ev) => { ev.stopPropagation(); setShareEvent(e); }}
                                                 data-testid={`share-event-${e.id}`}
                                                 title="Share / QR"
@@ -433,6 +557,15 @@ export default function AdminDashboard() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Edit event dialog */}
+            <EditEventDialog
+                event={editEvent}
+                onClose={() => setEditEvent(null)}
+                onSaved={(updated) => {
+                    setEvents((evs) => evs.map((e) => (e.id === updated.id ? updated : e)));
+                }}
+            />
 
             {/* Confirm-delete AlertDialog (replaces native confirm which is blocked in iframe) */}
             <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>

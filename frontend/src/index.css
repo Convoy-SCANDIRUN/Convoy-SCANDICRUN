@@ -183,3 +183,20 @@ body {
 .rt-popup-btn:hover { background: rgba(255, 255, 255, 0.06); }
 .rt-popup-btn-primary { background: #007AFF; border-color: #007AFF; }
 .rt-popup-btn-primary:hover { background: #005bb5; }
+
+/* iOS PWA / safe-area handling */
+@supports (padding: env(safe-area-inset-top)) {
+    .safe-top { padding-top: env(safe-area-inset-top); }
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* When installed as a PWA (iOS / Android standalone mode) */
+@media (display-mode: standalone) {
+    /* The Emergent dev badge is only useful on the web — hide it inside the
+       installed app so it doesn't take up space below the help/SOS bar. */
+    #emergent-badge { display: none !important; }
+    /* The bottom help/SOS row can sit closer to the edge once the badge is gone */
+    .pwa-bottom-tight { bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important; }
+    .pwa-map-pad-bottom { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important; }
+    .pwa-stack-tight { bottom: calc(108px + env(safe-area-inset-bottom, 0px)) !important; }
+}

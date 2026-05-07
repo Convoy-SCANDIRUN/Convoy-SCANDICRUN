@@ -61,11 +61,23 @@ def init_storage():
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
     key = init_storage()
-    resp = requests.put(f"{STORAGE_URL}/objects/{path}",
-                        headers={"X-Storage-Key": key, "Content-Type": content_type},
-                        data=data, timeout=120)
-    resp.raise_for_status()
-    return resp.json()
+    last_err = None
+    # Retry transient upstream object-store errors (5xx) up to 3 times
+    for attempt in range(3):
+        try:
+            resp = requests.put(f"{STORAGE_URL}/objects/{path}",
+                                headers={"X-Storage-Key": key, "Content-Type": content_type},
+                                data=data, timeout=120)
+            if resp.status_code >= 500 and attempt < 2:
+                last_err = f"upstream {resp.status_code}"
+                continue
+            resp.raise_for_status()
+            return resp.json()
+        except requests.RequestException as e:
+            last_err = str(e)
+            if attempt == 2:
+                raise
+    raise HTTPException(status_code=502, detail=f"Storage upload failed: {last_err}")
 
 def get_object(path: str) -> tuple:
     key = init_storage()
@@ -314,6 +326,38 @@ async def delete_event(event_id: str, user: dict = Depends(require_admin)):
     await db.registrations.delete_many({"event_id": event_id})
     return {"ok": True}
 
+@api_router.put("/events/{event_id}")
+async def update_event(
+    event_id: str,
+    name: Optional[str] = Form(None),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    emergency_phone: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    user: dict = Depends(require_admin),
+):
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    update: dict = {}
+    if name is not None:
+        update["name"] = name
+    if start_date is not None:
+        update["start_date"] = start_date
+    if end_date is not None:
+        update["end_date"] = end_date
+    if emergency_phone is not None:
+        update["emergency_phone"] = emergency_phone
+    if image is not None and image.filename:
+        data = await image.read()
+        ext = (image.filename or "img.jpg").split(".")[-1].lower()
+        update["image_path"] = upload_file(data, image.content_type or "image/jpeg", ext, user["id"])
+    if not update:
+        return event
+    await db.events.update_one({"id": event_id}, {"$set": update})
+    fresh = await db.events.find_one({"id": event_id}, {"_id": 0})
+    return fresh
+
 @api_router.get("/events/by-code/{code}")
 async def event_by_code(code: str, user: dict = Depends(get_current_user)):
     event = await db.events.find_one({"code": code.upper()}, {"_id": 0})
@@ -389,6 +433,42 @@ async def delete_registration(reg_id: str, user: dict = Depends(get_current_user
         raise HTTPException(status_code=403, detail="Forbidden")
     await db.registrations.delete_one({"id": reg_id})
     return {"ok": True}
+
+@api_router.patch("/registrations/{reg_id}")
+async def update_registration(
+    reg_id: str,
+    team_number: Optional[str] = Form(None),
+    team_name: Optional[str] = Form(None),
+    first_name: Optional[str] = Form(None),
+    last_name: Optional[str] = Form(None),
+    profile_picture: Optional[UploadFile] = File(None),
+    user: dict = Depends(get_current_user),
+):
+    reg = await db.registrations.find_one({"id": reg_id}, {"_id": 0})
+    if not reg:
+        raise HTTPException(status_code=404, detail="Registration not found")
+    is_owner = reg["user_id"] == user["id"]
+    is_admin = user.get("role") == "admin"
+    if not (is_owner or is_admin):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    update: dict = {}
+    if team_number is not None:
+        update["team_number"] = team_number
+    if team_name is not None:
+        update["team_name"] = team_name
+    if first_name is not None:
+        update["first_name"] = first_name
+    if last_name is not None:
+        update["last_name"] = last_name
+    if profile_picture is not None and profile_picture.filename:
+        data = await profile_picture.read()
+        ext = (profile_picture.filename or "img.jpg").split(".")[-1].lower()
+        update["profile_picture_path"] = upload_file(data, profile_picture.content_type or "image/jpeg", ext, user["id"])
+    if not update:
+        return reg
+    await db.registrations.update_one({"id": reg_id}, {"$set": update})
+    fresh = await db.registrations.find_one({"id": reg_id}, {"_id": 0})
+    return fresh
 
 @api_router.post("/registrations/{reg_id}/location")
 async def update_location(reg_id: str, body: LocationIn, user: dict = Depends(get_current_user)):

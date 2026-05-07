@@ -17,10 +17,117 @@ import {
 import { toast } from "sonner";
 import {
     Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, X, Phone,
-    Calendar, ListChecks, ShieldCheck, Crosshair, Trash2,
+    Calendar, ListChecks, ShieldCheck, Crosshair, Trash2, UserCog,
 } from "lucide-react";
 
 const LOCATION_INTERVAL_MS = 15_000;
+
+function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
+    const [teamNumber, setTeamNumber] = useState("");
+    const [teamName, setTeamName] = useState("");
+    const [first, setFirst] = useState("");
+    const [last, setLast] = useState("");
+    const [pic, setPic] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (myReg) {
+            setTeamNumber(myReg.team_number || "");
+            setTeamName(myReg.team_name || "");
+            setFirst(myReg.first_name || "");
+            setLast(myReg.last_name || "");
+            setPic(null);
+        }
+    }, [myReg, open]);
+
+    const submit = async (e) => {
+        e.preventDefault();
+        if (!myReg) return;
+        setSubmitting(true);
+        try {
+            const fd = new FormData();
+            fd.append("team_number", teamNumber);
+            fd.append("team_name", teamName);
+            fd.append("first_name", first);
+            fd.append("last_name", last);
+            if (pic) fd.append("profile_picture", pic);
+            const { data } = await api.patch(`/registrations/${myReg.id}`, fd, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            toast.success("Profile updated");
+            onSaved && onSaved(data);
+            onOpenChange(false);
+        } catch (err) {
+            toast.error(formatApiError(err));
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md"
+                           data-testid="edit-profile-dialog">
+                <DialogHeader>
+                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">Edit Profile</DialogTitle>
+                    <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                        Update your team details and picture
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={submit} className="space-y-4" data-testid="edit-profile-form">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label className="text-xs uppercase tracking-[0.2em]">Team #</Label>
+                            <Input value={teamNumber} onChange={(e) => setTeamNumber(e.target.value)} required
+                                   data-testid="edit-team-number-input"
+                                   className="bg-transparent border-white/20 rounded-none h-11" />
+                        </div>
+                        <div>
+                            <Label className="text-xs uppercase tracking-[0.2em]">Team name</Label>
+                            <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} required
+                                   data-testid="edit-team-name-input"
+                                   className="bg-transparent border-white/20 rounded-none h-11" />
+                        </div>
+                        <div>
+                            <Label className="text-xs uppercase tracking-[0.2em]">First name</Label>
+                            <Input value={first} onChange={(e) => setFirst(e.target.value)} required
+                                   data-testid="edit-first-name-input"
+                                   className="bg-transparent border-white/20 rounded-none h-11" />
+                        </div>
+                        <div>
+                            <Label className="text-xs uppercase tracking-[0.2em]">Last name</Label>
+                            <Input value={last} onChange={(e) => setLast(e.target.value)} required
+                                   data-testid="edit-last-name-input"
+                                   className="bg-transparent border-white/20 rounded-none h-11" />
+                        </div>
+                    </div>
+                    <div>
+                        <Label className="text-xs uppercase tracking-[0.2em]">New profile picture (optional)</Label>
+                        <Input type="file" accept="image/*" onChange={(e) => setPic(e.target.files?.[0] || null)}
+                               data-testid="edit-profile-picture-input"
+                               className="bg-transparent border-white/20 rounded-none h-11 file:bg-white/10 file:text-white file:border-0 file:px-3 file:mr-3" />
+                        {myReg?.profile_picture_path && !pic && (
+                            <div className="mt-2 flex items-center gap-2">
+                                <img src={fileUrl(myReg.profile_picture_path)} alt="" className="w-10 h-10 rounded-full object-cover border border-white/20" />
+                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider">current</span>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}
+                                className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={submitting} data-testid="edit-profile-save"
+                                className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em]">
+                            {submitting ? "Saving…" : "Save changes"}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function readPendingCode() {
     return sessionStorage.getItem("rt_pending_event_code") || "";
@@ -326,6 +433,7 @@ export default function ParticipantDashboard() {
     const [sosOpen, setSosOpen] = useState(false);
     const [confirmAction, setConfirmAction] = useState(null);
     const [showParticipantsList, setShowParticipantsList] = useState(false);
+    const [editProfileOpen, setEditProfileOpen] = useState(false);
 
     const loadEvents = async () => {
         const { data } = await api.get("/events");
@@ -530,6 +638,21 @@ export default function ParticipantDashboard() {
         } catch (err) { toast.error(formatApiError(err)); }
     };
 
+    const openSosDialog = async () => {
+        // Always fetch the latest event so the emergency phone reflects any
+        // recent admin edit and isn't blank for events created before this
+        // field existed.
+        if (activeEvent?.id) {
+            try {
+                const { data } = await api.get(`/events/${activeEvent.id}`);
+                setActiveEvent(data);
+            } catch (_) { /* keep current activeEvent if refresh fails */ }
+        }
+        setSosOpen(true);
+    };
+
+    const sanitizePhone = (raw) => (raw || "").replace(/[^\d+]/g, "");
+
     const callEmergency = async () => {
         const phone = activeEvent?.emergency_phone;
         if (!phone) return toast.error("No emergency number configured for this event");
@@ -538,7 +661,7 @@ export default function ParticipantDashboard() {
             try { await api.post(`/registrations/${myReg.id}/help`, { status: "sos" }); }
             catch (_) {}
         }
-        window.location.href = `tel:${phone.replace(/\s+/g, "")}`;
+        window.location.href = `tel:${sanitizePhone(phone)}`;
     };
 
     const leaveEvent = (eventToLeave) => {
@@ -589,10 +712,17 @@ export default function ParticipantDashboard() {
 
     return (
         <div className="h-[100dvh] w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
-            {/* Topbar — fixed so it's always on screen on iOS Safari */}
-            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 glass border-b border-white/10">
+            {/* Topbar — fixed so it's always on screen on iOS Safari. safe-top adds env(safe-area-inset-top) padding so iOS PWA status bar doesn't overlap. */}
+            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 glass border-b border-white/10 safe-top">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <Compass className="w-5 h-5 sm:w-6 sm:h-6 text-[#007AFF] flex-shrink-0" />
+                    {activeEvent?.image_path ? (
+                        <img src={fileUrl(activeEvent.image_path)} alt=""
+                             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#007AFF]/40 flex-shrink-0"
+                             data-testid="topbar-event-image"
+                             onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : (
+                        <Compass className="w-5 h-5 sm:w-6 sm:h-6 text-[#007AFF] flex-shrink-0" />
+                    )}
                     <div className="min-w-0">
                         <p className="font-display text-sm sm:text-xl font-black uppercase leading-none truncate">
                             {activeEvent?.name || "Convoy"}
@@ -603,6 +733,11 @@ export default function ParticipantDashboard() {
                     </div>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-2">
+                    <Button variant="ghost" onClick={() => setEditProfileOpen(true)} data-testid="edit-profile-button"
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3"
+                            title="Edit profile">
+                        <UserCog className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Profile</span>
+                    </Button>
                     <Button variant="ghost" onClick={() => setShowEventsPanel(true)} data-testid="my-events-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
                         <ListChecks className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">My Events</span>
@@ -634,12 +769,12 @@ export default function ParticipantDashboard() {
             </header>
 
             {/* Map — leave room for fixed top + bottom bars */}
-            <div className="absolute inset-0 pt-[52px] sm:pt-[64px] pb-[160px] sm:pb-[180px]">
+            <div className="absolute inset-0 pt-[60px] sm:pt-[72px] pb-[160px] sm:pb-[180px] pwa-map-pad-bottom">
                 <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} />
             </div>
 
             {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
-            <div className="fixed bottom-[160px] sm:bottom-[180px] left-3 sm:left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
+            <div className="fixed bottom-[160px] sm:bottom-[180px] left-3 sm:left-4 z-[1102] flex flex-col gap-2 pwa-stack-tight" data-testid="bottom-left-stack">
                 <button type="button" onClick={() => setShowParticipantsList(true)}
                         data-testid="stats-badge"
                         className="glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2 hover:bg-white/10 transition text-left"
@@ -681,9 +816,10 @@ export default function ParticipantDashboard() {
             </div>
 
             {/* Help / SOS floating buttons — fixed so always visible.
-                Bottom offset 56px clears the centered "Made with Emergent" badge (40px high). */}
+                Bottom offset 56px clears the centered "Made with Emergent" badge (40px high).
+                In PWA mode the badge is hidden via CSS, so .pwa-bottom-tight pulls the row closer to the screen edge. */}
             {myReg && (
-                <div className="fixed bottom-[56px] sm:bottom-[60px] left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3"
+                <div className="fixed bottom-[56px] sm:bottom-[60px] left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3 pwa-bottom-tight"
                      data-testid="help-controls">
                     {myReg.help_status === "help" && (
                         <button onClick={clearStatus} data-testid="clear-status-button"
@@ -700,7 +836,7 @@ export default function ParticipantDashboard() {
                                 <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" /> I Need Help
                             </span>
                         </button>
-                        <button onClick={() => setSosOpen(true)} data-testid="sos-button"
+                        <button onClick={openSosDialog} data-testid="sos-button"
                                 className="relative py-3 sm:py-5 font-black text-sm sm:text-lg uppercase tracking-[0.1em] sm:tracking-[0.15em] text-white transition-all
                                     bg-[#FF3B30] hover:bg-[#D32F2F] shadow-[0_0_30px_rgba(255,59,48,0.7)]">
                             <span className="flex items-center justify-center gap-1.5 sm:gap-2">
@@ -955,6 +1091,14 @@ export default function ParticipantDashboard() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Edit profile dialog */}
+            <EditProfileDialog
+                open={editProfileOpen}
+                onOpenChange={setEditProfileOpen}
+                myReg={myReg}
+                onSaved={(updated) => { setMyReg(updated); loadRegs(); }}
+            />
 
             {/* Confirm-action AlertDialog */}
             <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>

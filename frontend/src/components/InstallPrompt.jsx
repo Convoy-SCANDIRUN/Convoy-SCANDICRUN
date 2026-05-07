@@ -74,7 +74,7 @@ export default function InstallPrompt() {
     if (!show) return null;
 
     return (
-        <div className="fixed bottom-[170px] sm:bottom-[180px] right-3 sm:right-4 z-[1103] max-w-xs"
+        <div className="fixed bottom-[230px] sm:bottom-[230px] right-3 sm:right-4 z-[1103] max-w-xs"
              data-testid="pwa-install-prompt">
             {!showIosHelp ? (
                 <div className="glass border border-[#007AFF]/40 px-3 py-2 flex items-center gap-2">

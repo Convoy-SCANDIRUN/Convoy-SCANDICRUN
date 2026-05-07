@@ -634,12 +634,12 @@ export default function ParticipantDashboard() {
             </header>
 
             {/* Map — leave room for fixed top + bottom bars */}
-            <div className="absolute inset-0 pt-[52px] sm:pt-[64px] pb-[110px] sm:pb-[140px]">
+            <div className="absolute inset-0 pt-[52px] sm:pt-[64px] pb-[160px] sm:pb-[180px]">
                 <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} />
             </div>
 
             {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
-            <div className="fixed bottom-[110px] sm:bottom-[140px] left-3 sm:left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
+            <div className="fixed bottom-[160px] sm:bottom-[180px] left-3 sm:left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
                 <button type="button" onClick={() => setShowParticipantsList(true)}
                         data-testid="stats-badge"
                         className="glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2 hover:bg-white/10 transition text-left"
@@ -680,9 +680,10 @@ export default function ParticipantDashboard() {
                 </button>
             </div>
 
-            {/* Help / SOS floating buttons — fixed so always visible */}
+            {/* Help / SOS floating buttons — fixed so always visible.
+                Bottom offset 56px clears the centered "Made with Emergent" badge (40px high). */}
             {myReg && (
-                <div className="fixed bottom-2 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3"
+                <div className="fixed bottom-[56px] sm:bottom-[60px] left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3"
                      data-testid="help-controls">
                     {myReg.help_status === "help" && (
                         <button onClick={clearStatus} data-testid="clear-status-button"
@@ -880,7 +881,7 @@ export default function ParticipantDashboard() {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold truncate">
                                             T{r.team_number} · {r.team_name}
-                                            {isMe && <span className="ml-2 text-[10px] uppercase text-[#34C759] tracking-[0.2em]">you</span>}
+                                            {isMe && <span className="ml-2 text-[10px] uppercase text-[#34C759] tracking-[0.2em]" aria-label="You">· you</span>}
                                         </p>
                                         <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
                                         {r.help_status === "help" && r.help_message && (

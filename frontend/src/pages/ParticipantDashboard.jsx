@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import {
     Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, X, Phone,
-    Calendar, ListChecks, ShieldCheck, Crosshair,
+    Calendar, ListChecks, ShieldCheck, Crosshair, Trash2,
 } from "lucide-react";
 
 const LOCATION_INTERVAL_MS = 60_000;
@@ -265,7 +265,7 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
 }
 
 export default function ParticipantDashboard() {
-    const { user, logout } = useAuth();
+    const { user, logout, deleteAccount } = useAuth();
     const [events, setEvents] = useState([]);
     const [activeEvent, setActiveEvent] = useState(null);
     const [myReg, setMyReg] = useState(null);
@@ -332,6 +332,23 @@ export default function ParticipantDashboard() {
     );
 
     const [geoState, setGeoState] = useState({ status: "idle", error: null, lastAt: null });
+    const [permState, setPermState] = useState("unknown"); // 'granted' | 'prompt' | 'denied' | 'unsupported' | 'unknown'
+
+    // Watch the browser geolocation permission state directly so we don't show
+    // a "permission denied" message when the user has actually granted access.
+    useEffect(() => {
+        if (!navigator.permissions || !navigator.permissions.query) {
+            setPermState("unsupported");
+            return;
+        }
+        let perm;
+        navigator.permissions.query({ name: "geolocation" }).then((res) => {
+            perm = res;
+            setPermState(res.state);
+            res.onchange = () => setPermState(res.state);
+        }).catch(() => setPermState("unsupported"));
+        return () => { if (perm) perm.onchange = null; };
+    }, []);
 
     const pushLocation = async (silent = true) => {
         if (!myReg) {
@@ -359,13 +376,20 @@ export default function ParticipantDashboard() {
                 }
             },
             (err) => {
-                const msg = err.code === 1 ? "Location permission denied — enable it in your browser settings"
-                          : err.code === 2 ? "Location unavailable — try moving outdoors or near a window"
-                          : err.code === 3 ? "Location request timed out — tap Update again"
-                          : "Location error";
+                // Trust the Permissions API over the error code: some browsers report
+                // code 1 even when permission is granted but the GPS chip is busy.
+                let msg;
+                if (err.code === 1 && permState !== "granted") {
+                    msg = "Location permission denied — enable it in your browser settings";
+                } else if (err.code === 3) {
+                    msg = "Still trying to get a fix — tap to retry";
+                } else if (err.code === 2) {
+                    msg = "Location unavailable — move outdoors or near a window";
+                } else {
+                    msg = "Location not available right now — tap to retry";
+                }
                 setGeoState({ status: "error", error: msg, lastAt: null });
                 if (!silent) toast.error(msg);
-                else if (err.code === 1) toast.error(msg, { duration: 8000 });
             },
             { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
         );
@@ -487,6 +511,21 @@ export default function ParticipantDashboard() {
                     <Button variant="ghost" onClick={logout} data-testid="logout-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9">
                         <LogOut className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Logout</span>
+                    </Button>
+                    <Button variant="ghost"
+                            onClick={() => setConfirmAction({
+                                title: "Delete your account?",
+                                description: "Your account, all event registrations and location data will be permanently removed. This cannot be undone.",
+                                confirmLabel: "Delete account",
+                                destructive: true,
+                                run: async () => {
+                                    try { await deleteAccount(); toast.success("Account deleted"); }
+                                    catch (err) { toast.error(formatApiError(err)); }
+                                },
+                            })}
+                            data-testid="delete-account-button"
+                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9">
+                        <Trash2 className="w-3 h-3" />
                     </Button>
                 </div>
             </header>
@@ -614,7 +653,7 @@ export default function ParticipantDashboard() {
                                 value={helpText}
                                 onChange={(e) => setHelpText(e.target.value)}
                                 rows={4}
-                                placeholder="Flat tire, lost the convoy, need fuel…"
+                                placeholder="Flat tire, lost the route, need fuel…"
                                 data-testid="help-message-input"
                                 className="bg-transparent border-white/20 rounded-none mt-1 focus-visible:ring-[#FFCC00]"
                             />

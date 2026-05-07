@@ -189,6 +189,16 @@ async def logout(response: Response):
 async def me(user: dict = Depends(get_current_user)):
     return user
 
+@api_router.delete("/auth/me")
+async def delete_me(response: Response, user: dict = Depends(get_current_user)):
+    """Delete the current user's account, all their registrations and any
+    pending password-reset tokens. Irreversible."""
+    await db.registrations.delete_many({"user_id": user["id"]})
+    await db.password_reset_tokens.delete_many({"user_id": user["id"]})
+    await db.users.delete_one({"id": user["id"]})
+    response.delete_cookie("access_token", path="/")
+    return {"ok": True}
+
 # ---------- Password Reset ----------
 @api_router.post("/auth/forgot-password")
 async def forgot_password(body: ForgotPasswordIn, request: Request):

@@ -40,8 +40,14 @@ export function AuthProvider({ children }) {
         setUser(false);
     };
 
+    const deleteAccount = async () => {
+        await api.delete("/auth/me");
+        localStorage.removeItem("rt_token");
+        setUser(false);
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, setUser }}>
+        <AuthContext.Provider value={{ user, loading, login, register, logout, deleteAccount, setUser }}>
             {children}
         </AuthContext.Provider>
     );

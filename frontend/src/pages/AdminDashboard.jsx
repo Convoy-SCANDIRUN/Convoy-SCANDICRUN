@@ -15,7 +15,7 @@ import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldA
 import { QRCodeCanvas } from "qrcode.react";
 
 export default function AdminDashboard() {
-    const { user, logout } = useAuth();
+    const { user, logout, deleteAccount } = useAuth();
     const [events, setEvents] = useState([]);
     const [activeId, setActiveId] = useState(null);
     const [registrations, setRegistrations] = useState([]);
@@ -185,6 +185,21 @@ export default function AdminDashboard() {
                 <Button onClick={logout} variant="ghost" data-testid="logout-button"
                         className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">
                     <LogOut className="w-4 h-4 mr-2" /> Logout
+                </Button>
+                <Button variant="ghost"
+                        onClick={() => setConfirmAction({
+                            title: "Delete your admin account?",
+                            description: "Your account and any pending password-reset tokens will be permanently removed. Events you created will remain (other admins keep access).",
+                            confirmLabel: "Delete account",
+                            destructive: true,
+                            run: async () => {
+                                try { await deleteAccount(); toast.success("Account deleted"); }
+                                catch (err) { toast.error(formatApiError(err)); }
+                            },
+                        })}
+                        data-testid="delete-account-button"
+                        className="ml-2 rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em]">
+                    <Trash2 className="w-4 h-4" />
                 </Button>
             </header>
 

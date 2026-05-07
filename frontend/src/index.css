@@ -97,6 +97,13 @@ body {
     box-shadow: 0 0 12px rgba(0, 122, 255, 0.6);
     background: #141414;
 }
+.marker-pic.self {
+    border-color: #34C759;
+    box-shadow: 0 0 18px rgba(52, 199, 89, 0.85);
+}
+.marker-label.self {
+    color: #34C759;
+}
 .marker-pic.help {
     border-color: #FFCC00;
     box-shadow: 0 0 24px rgba(255, 204, 0, 0.95);

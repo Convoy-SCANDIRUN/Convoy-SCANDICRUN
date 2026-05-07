@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import {
     Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, X, Phone,
-    Calendar, ListChecks, ShieldCheck,
+    Calendar, ListChecks, ShieldCheck, Crosshair,
 } from "lucide-react";
 
 const LOCATION_INTERVAL_MS = 60_000;
@@ -308,8 +308,9 @@ export default function ParticipantDashboard() {
         return () => clearInterval(t);
     }, [activeEvent]);
 
-    // Toast notifications when *other* teams go HELP. SOS is a phone-call workflow,
-    // not a broadcast, so we no longer surface SOS as a toast on other clients.
+    // Toast notifications when *other* teams go HELP. SOS is a phone-call workflow
+    // that flags status server-side for the crew (admins) only — participants
+    // never see SOS toasts or red glow markers.
     const prevStatuses = useRef({});
     useEffect(() => {
         registrations.forEach((r) => {
@@ -317,31 +318,66 @@ export default function ParticipantDashboard() {
             const prev = prevStatuses.current[r.id];
             if (prev !== undefined && prev !== r.help_status && r.help_status === "help") {
                 const label = `Team ${r.team_number} · ${r.team_name}`;
-                toast.warning(`Help requested — ${label}`, { duration: 6000 });
+                const message = r.help_message ? `: ${r.help_message}` : "";
+                toast.warning(`Help — ${label}${message}`, { duration: 9000 });
             }
         });
         prevStatuses.current = Object.fromEntries(registrations.map((r) => [r.id, r.help_status]));
     }, [registrations, myReg]);
 
-    // Geolocation polling — every 60s
+    // Active help requests (visible to all participants)
+    const activeHelp = useMemo(
+        () => registrations.filter((r) => r.help_status === "help" && (!myReg || r.id !== myReg.id)),
+        [registrations, myReg]
+    );
+
+    const [geoState, setGeoState] = useState({ status: "idle", error: null, lastAt: null });
+
+    const pushLocation = async (silent = true) => {
+        if (!myReg) {
+            if (!silent) toast.error("Not registered to an event");
+            return;
+        }
+        if (!navigator.geolocation) {
+            setGeoState({ status: "error", error: "Geolocation unsupported", lastAt: null });
+            if (!silent) toast.error("Your browser does not support geolocation");
+            return;
+        }
+        setGeoState((s) => ({ ...s, status: "fetching" }));
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                try {
+                    await api.post(`/registrations/${myReg.id}/location`, {
+                        lat: pos.coords.latitude, lng: pos.coords.longitude,
+                    });
+                    setGeoState({ status: "ok", error: null, lastAt: Date.now() });
+                    if (!silent) toast.success("Location updated");
+                    loadRegs();
+                    loadMyReg();
+                } catch (e) {
+                    setGeoState((s) => ({ ...s, status: "error", error: "Could not save location" }));
+                }
+            },
+            (err) => {
+                const msg = err.code === 1 ? "Location permission denied — enable it in your browser settings"
+                          : err.code === 2 ? "Location unavailable — try moving outdoors or near a window"
+                          : err.code === 3 ? "Location request timed out — tap Update again"
+                          : "Location error";
+                setGeoState({ status: "error", error: msg, lastAt: null });
+                if (!silent) toast.error(msg);
+                else if (err.code === 1) toast.error(msg, { duration: 8000 });
+            },
+            { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
+        );
+    };
+
+    // Geolocation polling — first push immediately, then every 60 seconds
     useEffect(() => {
-        if (!myReg || !navigator.geolocation) return;
-        const push = () => {
-            navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    try {
-                        await api.post(`/registrations/${myReg.id}/location`, {
-                            lat: pos.coords.latitude, lng: pos.coords.longitude,
-                        });
-                    } catch (_) {}
-                },
-                (err) => console.warn("Geo error", err),
-                { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-            );
-        };
-        push();
-        const t = setInterval(push, LOCATION_INTERVAL_MS);
+        if (!myReg) return;
+        pushLocation(true);
+        const t = setInterval(() => pushLocation(true), LOCATION_INTERVAL_MS);
         return () => clearInterval(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [myReg?.id]);
 
     const submitHelp = async () => {
@@ -367,9 +403,14 @@ export default function ParticipantDashboard() {
         } catch (err) { toast.error(formatApiError(err)); }
     };
 
-    const callEmergency = () => {
+    const callEmergency = async () => {
         const phone = activeEvent?.emergency_phone;
         if (!phone) return toast.error("No emergency number configured for this event");
+        // Silently flag SOS status so the crew (admins) see a red glow on the map
+        if (myReg) {
+            try { await api.post(`/registrations/${myReg.id}/help`, { status: "sos" }); }
+            catch (_) {}
+        }
         window.location.href = `tel:${phone.replace(/\s+/g, "")}`;
     };
 
@@ -452,15 +493,46 @@ export default function ParticipantDashboard() {
 
             {/* Map */}
             <div className="absolute inset-0 pt-[64px] pb-[160px]">
-                <MapView registrations={registrations} />
+                <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} />
             </div>
 
-            {/* Live count badge — bottom-left */}
-            <div className="absolute bottom-[160px] left-4 z-[1102] glass px-3 py-2 flex items-center gap-2"
-                 data-testid="stats-badge">
-                <Users className="w-4 h-4 text-[#007AFF]" />
-                <span className="text-xs font-bold">{placedCount}/{registrations.length}</span>
-                <span className="text-[10px] uppercase tracking-wider text-zinc-400">live</span>
+            {/* Live count + geolocation status — bottom-left */}
+            <div className="absolute bottom-[160px] left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
+                <div className="glass px-3 py-2 flex items-center gap-2" data-testid="stats-badge">
+                    <Users className="w-4 h-4 text-[#007AFF]" />
+                    <span className="text-xs font-bold">{placedCount}/{registrations.length}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-400">live</span>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => pushLocation(false)}
+                    data-testid="update-location-button"
+                    className={`glass px-3 py-2 flex items-center gap-2 hover:bg-white/10 transition text-left ${
+                        geoState.status === "error" ? "border-l-2 border-[#FF3B30]" :
+                        geoState.status === "ok" ? "border-l-2 border-[#34C759]" :
+                        "border-l-2 border-[#007AFF]"
+                    }`}
+                >
+                    <Crosshair className={`w-4 h-4 ${geoState.status === "fetching" ? "animate-spin" : ""}`} />
+                    <div className="text-[10px] leading-tight">
+                        <div className="uppercase tracking-wider font-bold">
+                            {geoState.status === "fetching" ? "Locating…" :
+                             geoState.status === "ok" ? "Location live" :
+                             geoState.status === "error" ? "No location" :
+                             "Update location"}
+                        </div>
+                        {geoState.status === "ok" && geoState.lastAt && (
+                            <div className="text-zinc-400">
+                                {Math.max(1, Math.round((Date.now() - geoState.lastAt) / 1000))}s ago
+                            </div>
+                        )}
+                        {geoState.status === "error" && (
+                            <div className="text-[#FF3B30] max-w-[180px] truncate" title={geoState.error}>
+                                Tap to retry
+                            </div>
+                        )}
+                    </div>
+                </button>
             </div>
 
             {/* Help / SOS floating buttons */}
@@ -489,6 +561,26 @@ export default function ParticipantDashboard() {
                             </span>
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* Active help-requests panel — visible to all participants */}
+            {activeHelp.length > 0 && (
+                <div className="absolute top-[80px] left-1/2 -translate-x-1/2 z-[1102] glass border-l-4 border-[#FFCC00] px-4 py-3 max-w-[90vw] sm:max-w-md"
+                     data-testid="active-help-panel">
+                    <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-[#FFCC00] mb-2 flex items-center gap-2">
+                        <AlertTriangle className="w-3 h-3" /> Active help requests ({activeHelp.length})
+                    </p>
+                    <ul className="space-y-2 max-h-32 overflow-y-auto">
+                        {activeHelp.map((r) => (
+                            <li key={r.id} className="text-xs" data-testid={`active-help-item-${r.id}`}>
+                                <span className="font-bold">T{r.team_number} · {r.team_name}</span>
+                                {r.help_message && (
+                                    <span className="text-zinc-300 italic"> — {r.help_message}</span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
 

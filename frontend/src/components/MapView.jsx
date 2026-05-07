@@ -6,20 +6,24 @@ import { fileUrl } from "@/lib/api";
 const DEFAULT_CENTER = [48.8566, 2.3522]; // Paris fallback
 const DEFAULT_ZOOM = 5;
 
-function buildIcon(reg) {
-    const status = reg.help_status || "normal";
+function buildIcon(reg, opts = {}) {
+    const { hideSos = false, isSelf = false } = opts;
+    let status = reg.help_status || "normal";
+    if (status === "sos" && hideSos) status = "normal"; // crew-only red glow
     const pic = reg.profile_picture_path
         ? fileUrl(reg.profile_picture_path)
         : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60";
-    const label = `T${reg.team_number} · ${reg.team_name}`;
+    const labelText = `T${reg.team_number} · ${reg.team_name}`;
+    const label = isSelf ? `${labelText} · YOU` : labelText;
     const glow = status === "sos" ? '<div class="marker-glow-sos"></div>'
                : status === "help" ? '<div class="marker-glow-help"></div>'
                : "";
+    const extraClass = isSelf ? " self" : "";
     const html = `
       <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
         ${glow}
-        <img src="${pic}" class="marker-pic ${status}" onerror="this.src='https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60'" />
-        <div class="marker-label">${label}</div>
+        <img src="${pic}" class="marker-pic ${status}${extraClass}" onerror="this.src='https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60'" />
+        <div class="marker-label${isSelf ? ' self' : ''}">${label}</div>
       </div>`;
     return L.divIcon({
         html,
@@ -39,7 +43,7 @@ function FitBounds({ points }) {
     return null;
 }
 
-export default function MapView({ registrations = [], height = "100%" }) {
+export default function MapView({ registrations = [], height = "100%", hideSos = false, selfId = null }) {
     const placed = useMemo(
         () => registrations.filter((r) => r.lat != null && r.lng != null),
         [registrations]
@@ -61,7 +65,7 @@ export default function MapView({ registrations = [], height = "100%" }) {
                     <Marker
                         key={r.id}
                         position={[r.lat, r.lng]}
-                        icon={buildIcon(r)}
+                        icon={buildIcon(r, { hideSos, isSelf: r.id === selfId })}
                         data-testid={`participant-marker-${r.help_status}`}
                     />
                 ))}

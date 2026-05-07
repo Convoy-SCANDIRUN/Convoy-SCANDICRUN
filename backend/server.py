@@ -97,6 +97,7 @@ class LocationIn(BaseModel):
 
 class HelpIn(BaseModel):
     status: str  # "help", "sos", "clear"
+    message: Optional[str] = None
 
 class ForgotPasswordIn(BaseModel):
     email: EmailStr
@@ -252,6 +253,7 @@ async def create_event(
     name: str = Form(...),
     start_date: str = Form(...),
     end_date: str = Form(...),
+    emergency_phone: str = Form(""),
     image: Optional[UploadFile] = File(None),
     user: dict = Depends(require_admin),
 ):
@@ -266,6 +268,7 @@ async def create_event(
         "code": gen_event_code(),
         "start_date": start_date,
         "end_date": end_date,
+        "emergency_phone": emergency_phone or "",
         "image_path": image_path,
         "admin_id": user["id"],
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -277,9 +280,9 @@ async def create_event(
 @api_router.get("/events")
 async def list_events(user: dict = Depends(get_current_user)):
     if user["role"] == "admin":
-        events = await db.events.find({"admin_id": user["id"]}, {"_id": 0}).to_list(1000)
+        # All admins have full access to all events
+        events = await db.events.find({}, {"_id": 0}).to_list(1000)
     else:
-        # participant: events they're registered for
         regs = await db.registrations.find({"user_id": user["id"]}, {"_id": 0}).to_list(1000)
         event_ids = [r["event_id"] for r in regs]
         events = await db.events.find({"id": {"$in": event_ids}}, {"_id": 0}).to_list(1000)
@@ -295,7 +298,7 @@ async def get_event(event_id: str, user: dict = Depends(get_current_user)):
 @api_router.delete("/events/{event_id}")
 async def delete_event(event_id: str, user: dict = Depends(require_admin)):
     event = await db.events.find_one({"id": event_id})
-    if not event or event["admin_id"] != user["id"]:
+    if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     await db.events.delete_one({"id": event_id})
     await db.registrations.delete_many({"event_id": event_id})
@@ -366,13 +369,14 @@ async def my_registration(event_id: str, user: dict = Depends(get_current_user))
     return reg
 
 @api_router.delete("/registrations/{reg_id}")
-async def delete_registration(reg_id: str, user: dict = Depends(require_admin)):
+async def delete_registration(reg_id: str, user: dict = Depends(get_current_user)):
     reg = await db.registrations.find_one({"id": reg_id})
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
-    event = await db.events.find_one({"id": reg["event_id"]})
-    if not event or event["admin_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Not your event")
+    is_owner = reg["user_id"] == user["id"]
+    is_admin = user.get("role") == "admin"
+    if not (is_owner or is_admin):
+        raise HTTPException(status_code=403, detail="Forbidden")
     await db.registrations.delete_one({"id": reg_id})
     return {"ok": True}
 
@@ -397,17 +401,15 @@ async def update_help(reg_id: str, body: HelpIn, user: dict = Depends(get_curren
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
     is_owner = reg["user_id"] == user["id"]
-    is_admin_of_event = False
-    if user["role"] == "admin":
-        event = await db.events.find_one({"id": reg["event_id"]})
-        is_admin_of_event = event and event["admin_id"] == user["id"]
-    if not (is_owner or is_admin_of_event):
+    is_admin = user.get("role") == "admin"
+    if not (is_owner or is_admin):
         raise HTTPException(status_code=403, detail="Forbidden")
-    await db.registrations.update_one(
-        {"id": reg_id},
-        {"$set": {"help_status": new_status,
-                  "last_update": datetime.now(timezone.utc).isoformat()}},
-    )
+    update = {
+        "help_status": new_status,
+        "help_message": body.message or "" if new_status != "normal" else "",
+        "last_update": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.registrations.update_one({"id": reg_id}, {"$set": update})
     return {"ok": True, "status": new_status}
 
 # ---------- Files ----------

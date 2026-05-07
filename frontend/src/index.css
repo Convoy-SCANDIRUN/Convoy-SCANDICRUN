@@ -67,7 +67,7 @@ body {
 
 /* Custom Leaflet marker overrides */
 .leaflet-container {
-    background: #0A0A0A !important;
+    background: #EAF2F8 !important;
     font-family: 'Inter', sans-serif;
 }
 .leaflet-control-zoom a {
@@ -76,11 +76,11 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 .leaflet-control-attribution {
-    background: rgba(0, 0, 0, 0.7) !important;
-    color: #999 !important;
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: #555 !important;
 }
 .leaflet-control-attribution a {
-    color: #999 !important;
+    color: #007AFF !important;
 }
 
 .participant-marker {

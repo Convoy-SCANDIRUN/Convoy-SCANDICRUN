@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 export default function AdminDashboard() {
@@ -21,8 +25,12 @@ export default function AdminDashboard() {
     const [name, setName] = useState("");
     const [start, setStart] = useState("");
     const [end, setEnd] = useState("");
+    const [emergencyPhone, setEmergencyPhone] = useState("");
     const [image, setImage] = useState(null);
     const [creating, setCreating] = useState(false);
+
+    // confirm-delete state (replaces native window.confirm which is blocked in some sandboxed/iframe environments)
+    const [confirmAction, setConfirmAction] = useState(null);
 
     const active = useMemo(() => events.find((e) => e.id === activeId), [events, activeId]);
     const [shareEvent, setShareEvent] = useState(null);
@@ -108,10 +116,11 @@ export default function AdminDashboard() {
             fd.append("name", name);
             fd.append("start_date", start);
             fd.append("end_date", end);
+            fd.append("emergency_phone", emergencyPhone);
             if (image) fd.append("image", image);
             await api.post("/events", fd, { headers: { "Content-Type": "multipart/form-data" } });
             toast.success("Event created");
-            setName(""); setStart(""); setEnd(""); setImage(null);
+            setName(""); setStart(""); setEnd(""); setEmergencyPhone(""); setImage(null);
             setOpen(false);
             loadEvents();
         } catch (err) {
@@ -121,24 +130,38 @@ export default function AdminDashboard() {
         }
     };
 
-    const deleteEvent = async (id) => {
-        if (!window.confirm("Delete this event and all its registrations?")) return;
-        try {
-            await api.delete(`/events/${id}`);
-            toast.success("Event deleted");
-            const remaining = events.filter((e) => e.id !== id);
-            setEvents(remaining);
-            setActiveId(remaining[0]?.id || null);
-        } catch (err) { toast.error(formatApiError(err)); }
+    const askDeleteEvent = (e) => {
+        setConfirmAction({
+            title: "Delete event?",
+            description: `"${e.name}" and all its registrations will be permanently removed. This cannot be undone.`,
+            confirmLabel: "Delete event",
+            destructive: true,
+            run: async () => {
+                try {
+                    await api.delete(`/events/${e.id}`);
+                    toast.success("Event deleted");
+                    const remaining = events.filter((x) => x.id !== e.id);
+                    setEvents(remaining);
+                    setActiveId(remaining[0]?.id || null);
+                } catch (err) { toast.error(formatApiError(err)); }
+            },
+        });
     };
 
-    const deleteReg = async (id) => {
-        if (!window.confirm("Remove this participant from the event?")) return;
-        try {
-            await api.delete(`/registrations/${id}`);
-            toast.success("Participant removed");
-            loadRegs();
-        } catch (err) { toast.error(formatApiError(err)); }
+    const askDeleteReg = (r) => {
+        setConfirmAction({
+            title: "Remove participant?",
+            description: `Team ${r.team_number} · ${r.team_name} (${r.first_name} ${r.last_name}) will be removed from this event.`,
+            confirmLabel: "Remove",
+            destructive: true,
+            run: async () => {
+                try {
+                    await api.delete(`/registrations/${r.id}`);
+                    toast.success("Participant removed");
+                    loadRegs();
+                } catch (err) { toast.error(formatApiError(err)); }
+            },
+        });
     };
 
     const clearStatus = async (id) => {
@@ -214,6 +237,21 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                     <div>
+                                        <Label className="text-xs uppercase tracking-[0.2em]">Emergency phone</Label>
+                                        <Input
+                                            type="tel"
+                                            value={emergencyPhone}
+                                            onChange={(ev) => setEmergencyPhone(ev.target.value)}
+                                            required
+                                            placeholder="+49 30 12345678"
+                                            data-testid="event-emergency-phone-input"
+                                            className="bg-transparent rounded-none border-white/20 h-11"
+                                        />
+                                        <p className="text-[10px] text-zinc-500 mt-1">
+                                            Shown on participant SOS screen — must be reachable during the event.
+                                        </p>
+                                    </div>
+                                    <div>
                                         <Label className="text-xs uppercase tracking-[0.2em]">Cover image</Label>
                                         <Input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)}
                                                data-testid="event-image-input"
@@ -252,7 +290,7 @@ export default function AdminDashboard() {
                                                 className="text-zinc-500 hover:text-[#007AFF] transition">
                                             <Share2 className="w-4 h-4" />
                                         </button>
-                                        <button onClick={(ev) => { ev.stopPropagation(); deleteEvent(e.id); }}
+                                        <button onClick={(ev) => { ev.stopPropagation(); askDeleteEvent(e); }}
                                                 data-testid={`delete-event-${e.id}`}
                                                 className="text-zinc-500 hover:text-[#FF3B30] transition">
                                             <Trash2 className="w-4 h-4" />
@@ -276,29 +314,37 @@ export default function AdminDashboard() {
                             )}
                             {registrations.map((r) => (
                                 <div key={r.id} data-testid={`participant-row-${r.id}`}
-                                     className={`p-3 border flex items-center gap-3 ${r.help_status === "sos" ? "border-[#FF3B30] bg-[#FF3B30]/10" : r.help_status === "help" ? "border-[#FFCC00] bg-[#FFCC00]/10" : "border-white/10"}`}>
-                                    <img
-                                        src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
-                                        alt=""
-                                        className="w-10 h-10 rounded-full object-cover border border-white/20"
-                                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold truncate">T{r.team_number} · {r.team_name}</p>
-                                        <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
-                                    </div>
-                                    {(r.help_status === "help" || r.help_status === "sos") && (
-                                        <button onClick={() => clearStatus(r.id)}
-                                                data-testid={`clear-status-${r.id}`}
-                                                className="text-[10px] uppercase tracking-wider px-2 py-1 border border-white/20 hover:bg-white/10">
-                                            Clear
+                                     className={`p-3 border ${r.help_status === "sos" ? "border-[#FF3B30] bg-[#FF3B30]/10" : r.help_status === "help" ? "border-[#FFCC00] bg-[#FFCC00]/10" : "border-white/10"}`}>
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
+                                            alt=""
+                                            className="w-10 h-10 rounded-full object-cover border border-white/20"
+                                            onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold truncate">T{r.team_number} · {r.team_name}</p>
+                                            <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
+                                        </div>
+                                        {(r.help_status === "help" || r.help_status === "sos") && (
+                                            <button onClick={() => clearStatus(r.id)}
+                                                    data-testid={`clear-status-${r.id}`}
+                                                    className="text-[10px] uppercase tracking-wider px-2 py-1 border border-white/20 hover:bg-white/10">
+                                                Clear
+                                            </button>
+                                        )}
+                                        <button onClick={() => askDeleteReg(r)}
+                                                data-testid={`delete-reg-${r.id}`}
+                                                className="text-zinc-500 hover:text-[#FF3B30]">
+                                            <Trash2 className="w-4 h-4" />
                                         </button>
+                                    </div>
+                                    {r.help_message && (r.help_status === "help" || r.help_status === "sos") && (
+                                        <p className="mt-2 text-[11px] text-zinc-300 italic border-l-2 border-[#FFCC00] pl-2 break-words"
+                                           data-testid={`help-message-${r.id}`}>
+                                            “{r.help_message}”
+                                        </p>
                                     )}
-                                    <button onClick={() => deleteReg(r.id)}
-                                            data-testid={`delete-reg-${r.id}`}
-                                            className="text-zinc-500 hover:text-[#FF3B30]">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -372,6 +418,41 @@ export default function AdminDashboard() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Confirm-delete AlertDialog (replaces native confirm which is blocked in iframe) */}
+            <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>
+                <AlertDialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white" data-testid="confirm-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="font-display text-2xl uppercase tracking-tight">
+                            {confirmAction?.title}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-zinc-300 text-sm">
+                            {confirmAction?.description}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel
+                            data-testid="confirm-cancel"
+                            className="rounded-none border border-white/15 bg-transparent hover:bg-white/5 uppercase text-xs tracking-[0.2em] text-white">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            data-testid="confirm-accept"
+                            onClick={async () => {
+                                const action = confirmAction;
+                                setConfirmAction(null);
+                                if (action?.run) await action.run();
+                            }}
+                            className={`rounded-none uppercase text-xs tracking-[0.2em] ${
+                                confirmAction?.destructive
+                                    ? "bg-[#FF3B30] hover:bg-[#D32F2F] text-white"
+                                    : "bg-[#007AFF] hover:bg-[#005bb5] text-white"
+                            }`}>
+                            {confirmAction?.confirmLabel || "Confirm"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

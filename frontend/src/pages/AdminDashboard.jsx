@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
@@ -141,6 +141,8 @@ export default function AdminDashboard() {
     const active = useMemo(() => events.find((e) => e.id === activeId), [events, activeId]);
     const [shareEvent, setShareEvent] = useState(null);
     const [editEvent, setEditEvent] = useState(null);
+    const [sosAlert, setSosAlert] = useState(null); // { reg, openedAt }
+    const prevStatusesRef = useRef({});
     const shareUrl = shareEvent ? `${window.location.origin}/join/${shareEvent.code}` : "";
 
     const copyShareUrl = async () => {
@@ -201,18 +203,27 @@ export default function AdminDashboard() {
         return () => clearInterval(t);
     }, [activeId]);
 
-    // alerts on status change
-    const [prevStatuses, setPrevStatuses] = useState({});
+    // Alerts on status change — auto-open the SOS dispatch modal so the
+    // crew can see team info, last position and one-tap navigation.
     useEffect(() => {
         registrations.forEach((r) => {
-            const prev = prevStatuses[r.id];
+            const prev = prevStatusesRef.current[r.id];
             if (prev !== undefined && prev !== r.help_status && (r.help_status === "help" || r.help_status === "sos")) {
                 const label = `Team ${r.team_number} · ${r.team_name}`;
-                if (r.help_status === "sos") toast.error(`SOS — ${label}`, { duration: 8000 });
-                else toast.warning(`Help requested — ${label}`, { duration: 6000 });
+                if (r.help_status === "sos") {
+                    toast.error(`SOS — ${label}`, { duration: 10000 });
+                    setSosAlert({ reg: r, openedAt: Date.now() });
+                } else {
+                    toast.warning(`Help requested — ${label}`, { duration: 6000 });
+                }
+            }
+            // Keep the dialog's data in sync with the latest poll if it's open
+            if (r.help_status === "sos" && sosAlert?.reg?.id === r.id) {
+                setSosAlert((s) => s ? { ...s, reg: r } : s);
             }
         });
-        setPrevStatuses(Object.fromEntries(registrations.map((r) => [r.id, r.help_status])));
+        prevStatusesRef.current = Object.fromEntries(registrations.map((r) => [r.id, r.help_status]));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [registrations]);
 
     const submitEvent = async (e) => {
@@ -453,18 +464,38 @@ export default function AdminDashboard() {
                             )}
                             {registrations.map((r) => (
                                 <div key={r.id} data-testid={`participant-row-${r.id}`}
-                                     className={`p-3 border ${r.help_status === "sos" ? "border-[#FF3B30] bg-[#FF3B30]/10" : r.help_status === "help" ? "border-[#FFCC00] bg-[#FFCC00]/10" : "border-white/10"}`}>
+                                     className={`p-3 border ${
+                                         r.help_status === "sos"
+                                             ? "border-[#FF3B30] bg-[#FF3B30]/15 ring-1 ring-[#FF3B30] animate-pulse"
+                                             : r.help_status === "help"
+                                                 ? "border-[#FFCC00] bg-[#FFCC00]/10"
+                                                 : "border-white/10"
+                                     }`}>
                                     <div className="flex items-center gap-3">
                                         <img
                                             src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
                                             alt=""
-                                            className="w-10 h-10 rounded-full object-cover border border-white/20"
+                                            className={`w-10 h-10 rounded-full object-cover border ${
+                                                r.help_status === "sos" ? "border-[#FF3B30] shadow-[0_0_10px_rgba(255,59,48,0.6)]" :
+                                                r.help_status === "help" ? "border-[#FFCC00]" :
+                                                "border-white/20"
+                                            }`}
                                             onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
                                         />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold truncate">T{r.team_number} · {r.team_name}</p>
+                                            <p className={`text-sm font-bold truncate ${r.help_status === "sos" ? "text-[#FF3B30]" : ""}`}>
+                                                {r.help_status === "sos" && <span className="mr-1">🚨</span>}
+                                                T{r.team_number} · {r.team_name}
+                                            </p>
                                             <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
                                         </div>
+                                        {r.help_status === "sos" && (
+                                            <button onClick={() => setSosAlert({ reg: r, openedAt: Date.now() })}
+                                                    data-testid={`open-sos-${r.id}`}
+                                                    className="text-[10px] uppercase tracking-wider px-2 py-1 bg-[#FF3B30] text-white font-bold">
+                                                Dispatch
+                                            </button>
+                                        )}
                                         {(r.help_status === "help" || r.help_status === "sos") && (
                                             <button onClick={() => clearStatus(r.id)}
                                                     data-testid={`clear-status-${r.id}`}
@@ -491,16 +522,20 @@ export default function AdminDashboard() {
                 )}
             </aside>
 
-            {/* Distress badge */}
+            {/* Distress badge — clickable to re-open the dispatch dialog */}
             {registrations.some((r) => r.help_status === "sos") && (
-                <div className="absolute top-[88px] right-4 z-[1100] glass border-l-4 border-[#FF3B30] px-4 py-3 flex items-center gap-3"
-                     data-testid="active-sos-banner">
+                <button onClick={() => {
+                    const sos = registrations.find((r) => r.help_status === "sos");
+                    if (sos) setSosAlert({ reg: sos, openedAt: Date.now() });
+                }}
+                        data-testid="active-sos-banner"
+                        className="absolute top-[88px] right-4 z-[1100] glass border-l-4 border-[#FF3B30] px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition animate-pulse">
                     <ShieldAlert className="w-5 h-5 text-[#FF3B30]" />
-                    <div>
+                    <div className="text-left">
                         <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#FF3B30]">SOS Active</p>
-                        <p className="text-[11px] text-zinc-300">Check team status</p>
+                        <p className="text-[11px] text-zinc-300">Tap to dispatch</p>
                     </div>
-                </div>
+                </button>
             )}
 
             {!active && events.length === 0 && (
@@ -555,6 +590,107 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* SOS dispatch dialog — auto-opens for admins when a team triggers SOS */}
+            <Dialog open={!!sosAlert} onOpenChange={(o) => !o && setSosAlert(null)}>
+                <DialogContent className="bg-[#0A0A0A] border border-[#FF3B30]/60 rounded-none text-white max-w-md"
+                               data-testid="sos-dispatch-dialog">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-3xl uppercase tracking-tight text-[#FF3B30] flex items-center gap-2">
+                            <ShieldAlert className="w-7 h-7 animate-pulse" /> SOS · Dispatch
+                        </DialogTitle>
+                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                            Team requesting emergency assistance
+                        </DialogDescription>
+                    </DialogHeader>
+                    {sosAlert?.reg && (() => {
+                        const r = sosAlert.reg;
+                        const hasPos = r.lat != null && r.lng != null;
+                        const lat = hasPos ? Number(r.lat).toFixed(5) : null;
+                        const lng = hasPos ? Number(r.lng).toFixed(5) : null;
+                        const gmaps = hasPos ? `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}` : null;
+                        const amaps = hasPos ? `https://maps.apple.com/?daddr=${r.lat},${r.lng}` : null;
+                        return (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3 border border-[#FF3B30]/40 bg-[#FF3B30]/10 p-3"
+                                     data-testid="sos-team-info">
+                                    <img
+                                        src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
+                                        alt=""
+                                        className="w-14 h-14 rounded-full object-cover border-2 border-[#FF3B30] shadow-[0_0_18px_rgba(255,59,48,0.6)]"
+                                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
+                                    />
+                                    <div className="min-w-0">
+                                        <p className="font-display text-xl font-black uppercase">
+                                            T{r.team_number} · {r.team_name}
+                                        </p>
+                                        <p className="text-xs text-zinc-300">{r.first_name} {r.last_name}</p>
+                                    </div>
+                                </div>
+
+                                <div className="border border-white/15 p-3 space-y-1.5" data-testid="sos-position-info">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-zinc-400">
+                                        Last known position
+                                    </p>
+                                    {hasPos ? (
+                                        <>
+                                            <p className="font-mono text-sm text-white">
+                                                {lat}, {lng}
+                                            </p>
+                                            <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+                                                Updated {r.last_update ? new Date(r.last_update).toLocaleTimeString() : "—"}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-xs text-[#FFCC00]">
+                                            ⚠ No location reported yet — call the team to confirm whereabouts.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {r.help_message && (
+                                    <div className="border-l-2 border-[#FF3B30] pl-3" data-testid="sos-message">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-zinc-400 mb-1">
+                                            Team note
+                                        </p>
+                                        <p className="text-sm text-zinc-200 italic">“{r.help_message}”</p>
+                                    </div>
+                                )}
+
+                                {hasPos && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <a href={gmaps} target="_blank" rel="noreferrer"
+                                           data-testid={`sos-navigate-google-${r.id}`}
+                                           className="text-center py-3 bg-[#007AFF] hover:bg-[#005bb5] text-white text-[11px] uppercase tracking-[0.2em] font-bold transition">
+                                            Google Maps
+                                        </a>
+                                        <a href={amaps} target="_blank" rel="noreferrer"
+                                           data-testid={`sos-navigate-apple-${r.id}`}
+                                           className="text-center py-3 border border-white/20 hover:bg-white/5 text-white text-[11px] uppercase tracking-[0.2em] font-bold transition">
+                                            Apple Maps
+                                        </a>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2 pt-1">
+                                    <Button onClick={() => {
+                                        clearStatus(r.id);
+                                        setSosAlert(null);
+                                    }} data-testid="sos-mark-resolved"
+                                            className="flex-1 rounded-none bg-[#34C759] hover:bg-[#2BA64B] text-white uppercase text-[11px] tracking-[0.2em]">
+                                        Mark resolved
+                                    </Button>
+                                    <Button variant="ghost" onClick={() => setSosAlert(null)}
+                                            data-testid="sos-dismiss"
+                                            className="rounded-none border border-white/15 uppercase text-[11px] tracking-[0.2em]">
+                                        Dismiss
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
 

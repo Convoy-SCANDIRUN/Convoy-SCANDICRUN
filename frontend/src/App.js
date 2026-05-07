@@ -1,4 +1,5 @@
 import "@/App.css";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login";
@@ -34,6 +35,26 @@ function RootRedirect() {
 }
 
 export default function App() {
+    // Reposition the platform "Made with Emergent" badge to the bottom-center
+    // so it never overlaps our SOS button on small screens. The badge sets its
+    // own inline !important styles, so we have to force it via JS.
+    useEffect(() => {
+        const reposition = () => {
+            const b = document.getElementById("emergent-badge");
+            if (!b) return;
+            b.style.setProperty("left", "50%", "important");
+            b.style.setProperty("right", "auto", "important");
+            b.style.setProperty("transform", "translateX(-50%)", "important");
+            b.style.setProperty("bottom", "6px", "important");
+            b.style.setProperty("z-index", "1099", "important");
+        };
+        reposition();
+        const obs = new MutationObserver(reposition);
+        obs.observe(document.body, { childList: true, subtree: true });
+        const t = setInterval(reposition, 1500);
+        return () => { obs.disconnect(); clearInterval(t); };
+    }, []);
+
     return (
         <AuthProvider>
             <BrowserRouter>

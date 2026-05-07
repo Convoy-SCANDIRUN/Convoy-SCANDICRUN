@@ -325,6 +325,7 @@ export default function ParticipantDashboard() {
     const [helpAck, setHelpAck] = useState(false);
     const [sosOpen, setSosOpen] = useState(false);
     const [confirmAction, setConfirmAction] = useState(null);
+    const [showParticipantsList, setShowParticipantsList] = useState(false);
 
     const loadEvents = async () => {
         const { data } = await api.get("/events");
@@ -585,11 +586,14 @@ export default function ParticipantDashboard() {
 
             {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
             <div className="fixed bottom-[110px] sm:bottom-[140px] left-3 sm:left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
-                <div className="glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2" data-testid="stats-badge">
+                <button type="button" onClick={() => setShowParticipantsList(true)}
+                        data-testid="stats-badge"
+                        className="glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2 hover:bg-white/10 transition text-left"
+                        title="Show participants">
                     <Users className="w-3 h-3 sm:w-4 sm:h-4 text-[#007AFF]" />
                     <span className="text-[11px] sm:text-xs font-bold">{placedCount}/{registrations.length}</span>
                     <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-400">live</span>
-                </div>
+                </button>
                 <button
                     type="button"
                     onClick={() => pushLocation(false)}
@@ -786,6 +790,63 @@ export default function ParticipantDashboard() {
                             </Button>
                         )}
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Participants overview — opened from the live-count badge */}
+            <Dialog open={showParticipantsList} onOpenChange={setShowParticipantsList}>
+                <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-lg"
+                               data-testid="participants-overview-dialog">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">Participants</DialogTitle>
+                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                            {placedCount}/{registrations.length} live · {activeEvent?.name}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1" data-testid="participants-overview-list">
+                        {registrations.length === 0 && (
+                            <p className="text-xs text-zinc-500 italic">No participants yet.</p>
+                        )}
+                        {registrations.map((r) => {
+                            const isMe = myReg?.id === r.id;
+                            const isLive = r.lat != null && r.lng != null;
+                            return (
+                                <div key={r.id} data-testid={`overview-row-${r.id}`}
+                                     className={`p-3 border flex items-center gap-3 ${
+                                         isMe ? "border-[#34C759] bg-[#34C759]/10" :
+                                         r.help_status === "help" ? "border-[#FFCC00] bg-[#FFCC00]/10" :
+                                         "border-white/10"
+                                     }`}>
+                                    <img
+                                        src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
+                                        alt=""
+                                        className="w-10 h-10 rounded-full object-cover border border-white/20 flex-shrink-0"
+                                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold truncate">
+                                            T{r.team_number} · {r.team_name}
+                                            {isMe && <span className="ml-2 text-[10px] uppercase text-[#34C759] tracking-[0.2em]">you</span>}
+                                        </p>
+                                        <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
+                                        {r.help_status === "help" && r.help_message && (
+                                            <p className="text-[11px] text-[#FFCC00] italic mt-0.5">⚠ {r.help_message}</p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                                        <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                                            isLive ? "text-[#34C759]" : "text-zinc-500"
+                                        }`}>
+                                            {isLive ? "● live" : "○ offline"}
+                                        </span>
+                                        {r.help_status === "help" && (
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-[#FFCC00]">help</span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </DialogContent>
             </Dialog>
 

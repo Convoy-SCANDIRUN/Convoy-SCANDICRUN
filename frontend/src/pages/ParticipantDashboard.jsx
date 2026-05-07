@@ -102,10 +102,56 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
     };
 
     const requestLocation = async () => {
-        const ok = await requestGeoPermission();
-        setLocConsent(ok);
-        if (ok) toast.success("Location access granted");
-        else toast.error("Location access denied — required to join");
+        if (!navigator.geolocation) {
+            toast.error("Geolocation not supported on this device");
+            return;
+        }
+
+        // 1. Try to fetch a position. The click counts as the user-gesture iOS
+        //    Safari needs to surface the permission prompt.
+        const fix = await new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+                () => resolve({ ok: true }),
+                (err) => resolve({ ok: false, code: err.code }),
+                { enableHighAccuracy: false, maximumAge: 60_000, timeout: 25_000 }
+            );
+        });
+
+        // 2. Cross-check with the Permissions API — this works on iOS 16+ and
+        //    tells us the *real* permission state, even when the GPS chip
+        //    happens to time out on the very first call.
+        let permState = "unknown";
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                const r = await navigator.permissions.query({ name: "geolocation" });
+                permState = r.state;
+            } catch (_) { /* not all browsers support this */ }
+        }
+
+        if (fix.ok || permState === "granted") {
+            setLocConsent(true);
+            if (fix.ok) toast.success("Location access granted");
+            else toast.warning("Permission granted — we'll keep trying to get a fix on the map");
+            return;
+        }
+
+        if (fix.code === 1 || permState === "denied") {
+            setLocConsent(false);
+            toast.error(
+                "Location access denied. On iPhone: open Settings → Safari → Location → Allow, then tap Grant location access again.",
+                { duration: 14000 }
+            );
+            return;
+        }
+
+        // Unknown state (e.g. iOS Safari < 16 with timeout). Treat the click as
+        // consent so the user is not blocked — the dashboard will show
+        // a clear status badge and a manual retry button.
+        setLocConsent(true);
+        toast.warning(
+            "Couldn't get a fix right now. You can still join — we'll keep trying on the map.",
+            { duration: 8000 }
+        );
     };
 
     const submit = async (e) => {
@@ -234,9 +280,11 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
                                 </p>
                             </div>
                             <p className="text-[11px] text-zinc-400 leading-relaxed">
-                                The app will request continuous access to your device location. Please choose
-                                "Allow always / While using the app" in your browser prompt. Tracking only
-                                happens while the app is open.
+                                The app will request access to your device location while you are
+                                using it. On iPhone choose <span className="text-white font-bold">"Allow"</span> in the
+                                Safari prompt. If you accidentally said no, open
+                                <span className="text-white font-bold"> Settings → Safari → Location → Allow </span>
+                                and come back here.
                             </p>
                             {!locConsent && (
                                 <Button type="button" onClick={requestLocation} data-testid="request-location-button"
@@ -485,31 +533,31 @@ export default function ParticipantDashboard() {
     const placedCount = registrations.filter((r) => r.lat != null).length;
 
     return (
-        <div className="h-screen w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
-            {/* Topbar */}
-            <header className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 sm:px-6 py-3 glass border-b border-white/10">
-                <div className="flex items-center gap-3 min-w-0">
-                    <Compass className="w-6 h-6 text-[#007AFF] flex-shrink-0" />
+        <div className="h-[100dvh] w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
+            {/* Topbar — fixed so it's always on screen on iOS Safari */}
+            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 glass border-b border-white/10">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <Compass className="w-5 h-5 sm:w-6 sm:h-6 text-[#007AFF] flex-shrink-0" />
                     <div className="min-w-0">
-                        <p className="font-display text-base sm:text-xl font-black uppercase leading-none truncate">
+                        <p className="font-display text-sm sm:text-xl font-black uppercase leading-none truncate">
                             {activeEvent?.name || "Convoy"}
                         </p>
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-1 truncate">
+                        <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-0.5 sm:mt-1 truncate">
                             {myReg ? `T${myReg.team_number} · ${myReg.team_name}` : user?.name}
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                     <Button variant="ghost" onClick={() => setShowEventsPanel(true)} data-testid="my-events-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9">
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
                         <ListChecks className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">My Events</span>
                     </Button>
                     <Button variant="ghost" onClick={() => setShowJoin(true)} data-testid="join-other-event-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9">
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
                         <Plus className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Join</span>
                     </Button>
                     <Button variant="ghost" onClick={logout} data-testid="logout-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9">
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
                         <LogOut className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Logout</span>
                     </Button>
                     <Button variant="ghost"
@@ -524,36 +572,36 @@ export default function ParticipantDashboard() {
                                 },
                             })}
                             data-testid="delete-account-button"
-                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9">
+                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2">
                         <Trash2 className="w-3 h-3" />
                     </Button>
                 </div>
             </header>
 
-            {/* Map */}
-            <div className="absolute inset-0 pt-[64px] pb-[160px]">
+            {/* Map — leave room for fixed top + bottom bars */}
+            <div className="absolute inset-0 pt-[52px] sm:pt-[64px] pb-[110px] sm:pb-[140px]">
                 <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} />
             </div>
 
-            {/* Live count + geolocation status — bottom-left */}
-            <div className="absolute bottom-[160px] left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
-                <div className="glass px-3 py-2 flex items-center gap-2" data-testid="stats-badge">
-                    <Users className="w-4 h-4 text-[#007AFF]" />
-                    <span className="text-xs font-bold">{placedCount}/{registrations.length}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-400">live</span>
+            {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
+            <div className="fixed bottom-[110px] sm:bottom-[140px] left-3 sm:left-4 z-[1102] flex flex-col gap-2" data-testid="bottom-left-stack">
+                <div className="glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2" data-testid="stats-badge">
+                    <Users className="w-3 h-3 sm:w-4 sm:h-4 text-[#007AFF]" />
+                    <span className="text-[11px] sm:text-xs font-bold">{placedCount}/{registrations.length}</span>
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-400">live</span>
                 </div>
                 <button
                     type="button"
                     onClick={() => pushLocation(false)}
                     data-testid="update-location-button"
-                    className={`glass px-3 py-2 flex items-center gap-2 hover:bg-white/10 transition text-left ${
+                    className={`glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2 hover:bg-white/10 transition text-left ${
                         geoState.status === "error" ? "border-l-2 border-[#FF3B30]" :
                         geoState.status === "ok" ? "border-l-2 border-[#34C759]" :
                         "border-l-2 border-[#007AFF]"
                     }`}
                 >
-                    <Crosshair className={`w-4 h-4 ${geoState.status === "fetching" ? "animate-spin" : ""}`} />
-                    <div className="text-[10px] leading-tight">
+                    <Crosshair className={`w-3 h-3 sm:w-4 sm:h-4 ${geoState.status === "fetching" ? "animate-spin" : ""}`} />
+                    <div className="text-[9px] sm:text-[10px] leading-tight">
                         <div className="uppercase tracking-wider font-bold">
                             {geoState.status === "fetching" ? "Locating…" :
                              geoState.status === "ok" ? "Location live" :
@@ -566,7 +614,7 @@ export default function ParticipantDashboard() {
                             </div>
                         )}
                         {geoState.status === "error" && (
-                            <div className="text-[#FF3B30] max-w-[180px] truncate" title={geoState.error}>
+                            <div className="text-[#FF3B30] max-w-[160px] sm:max-w-[180px] truncate" title={geoState.error}>
                                 Tap to retry
                             </div>
                         )}
@@ -574,29 +622,30 @@ export default function ParticipantDashboard() {
                 </button>
             </div>
 
-            {/* Help / SOS floating buttons */}
+            {/* Help / SOS floating buttons — fixed so always visible */}
             {myReg && (
-                <div className="absolute bottom-4 left-4 right-4 z-[1100] flex flex-col items-center gap-3" data-testid="help-controls">
+                <div className="fixed bottom-2 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3"
+                     data-testid="help-controls">
                     {myReg.help_status === "help" && (
                         <button onClick={clearStatus} data-testid="clear-status-button"
-                                className="w-full max-w-md text-xs uppercase tracking-[0.3em] py-2 border border-white/30 bg-black/60 backdrop-blur-xl hover:bg-white/10">
+                                className="w-full max-w-md text-[10px] sm:text-xs uppercase tracking-[0.2em] sm:tracking-[0.3em] py-1 sm:py-2 border border-white/30 bg-black/60 backdrop-blur-xl hover:bg-white/10">
                             Cancel — I'm okay
                         </button>
                     )}
-                    <div className="w-full max-w-md grid grid-cols-2 gap-3">
+                    <div className="w-full max-w-md grid grid-cols-2 gap-2 sm:gap-3">
                         <button onClick={() => setHelpOpen(true)} data-testid="help-button"
-                                className={`relative py-5 sm:py-7 font-black text-base sm:text-xl uppercase tracking-[0.15em] text-black transition-all
+                                className={`relative py-3 sm:py-5 font-black text-sm sm:text-lg uppercase tracking-[0.1em] sm:tracking-[0.15em] text-black transition-all
                                     bg-[#FFCC00] hover:bg-[#E6B800] shadow-[0_0_24px_rgba(255,204,0,0.55)]
                                     ${myReg.help_status === "help" ? "ring-4 ring-[#FFCC00] animate-pulse" : ""}`}>
-                            <span className="flex items-center justify-center gap-2">
-                                <AlertTriangle className="w-5 h-5" /> I Need Help
+                            <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+                                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" /> I Need Help
                             </span>
                         </button>
                         <button onClick={() => setSosOpen(true)} data-testid="sos-button"
-                                className="relative py-5 sm:py-7 font-black text-base sm:text-xl uppercase tracking-[0.15em] text-white transition-all
+                                className="relative py-3 sm:py-5 font-black text-sm sm:text-lg uppercase tracking-[0.1em] sm:tracking-[0.15em] text-white transition-all
                                     bg-[#FF3B30] hover:bg-[#D32F2F] shadow-[0_0_30px_rgba(255,59,48,0.7)]">
-                            <span className="flex items-center justify-center gap-2">
-                                <AlertOctagon className="w-5 h-5" /> SOS
+                            <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+                                <AlertOctagon className="w-4 h-4 sm:w-5 sm:h-5" /> SOS
                             </span>
                         </button>
                     </div>

@@ -1,0 +1,20 @@
+{
+  "short_name": "Convoy",
+  "name": "Convoy — Tactical Tracker",
+  "description": "Live road-trip participant tracker with help & SOS broadcasts.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "categories": ["travel", "navigation", "utilities"]
+}

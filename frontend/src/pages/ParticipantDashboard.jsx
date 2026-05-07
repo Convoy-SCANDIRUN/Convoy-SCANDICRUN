@@ -20,7 +20,7 @@ import {
     Calendar, ListChecks, ShieldCheck, Crosshair, Trash2,
 } from "lucide-react";
 
-const LOCATION_INTERVAL_MS = 60_000;
+const LOCATION_INTERVAL_MS = 15_000;
 
 function readPendingCode() {
     return sessionStorage.getItem("rt_pending_event_code") || "";
@@ -444,12 +444,66 @@ export default function ParticipantDashboard() {
         );
     };
 
-    // Geolocation polling — first push immediately, then every 60 seconds
+    // Geolocation strategy:
+    //   1. watchPosition() pushes whenever the OS reports movement (sub-15s
+    //      cadence on most devices).
+    //   2. A 15s interval still fires getCurrentPosition() as a safety net
+    //      so stationary users still report regularly.
+    //   3. When the tab becomes visible again (foregrounded), push immediately.
+    //   4. A Wake Lock keeps the screen on so iOS doesn't suspend the JS engine.
     useEffect(() => {
         if (!myReg) return;
+
+        // Initial push and 15-second safety polling
         pushLocation(true);
-        const t = setInterval(() => pushLocation(true), LOCATION_INTERVAL_MS);
-        return () => clearInterval(t);
+        const interval = setInterval(() => pushLocation(true), LOCATION_INTERVAL_MS);
+
+        // Continuous watch via OS-level events
+        let watchId = null;
+        if (navigator.geolocation && navigator.geolocation.watchPosition) {
+            watchId = navigator.geolocation.watchPosition(
+                async (pos) => {
+                    try {
+                        await api.post(`/registrations/${myReg.id}/location`, {
+                            lat: pos.coords.latitude, lng: pos.coords.longitude,
+                        });
+                        setGeoState({ status: "ok", error: null, lastAt: Date.now() });
+                    } catch (_) { /* ignore */ }
+                },
+                () => { /* errors are surfaced by pushLocation() */ },
+                { enableHighAccuracy: true, maximumAge: 5_000, timeout: 25_000 }
+            );
+        }
+
+        // Page Visibility — push immediately when user comes back to the app
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") pushLocation(true);
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        // Wake Lock — keeps the screen on so the OS doesn't pause JS
+        let wakeLock = null;
+        const requestWakeLock = async () => {
+            if ("wakeLock" in navigator) {
+                try { wakeLock = await navigator.wakeLock.request("screen"); }
+                catch (_) { /* user gesture not available or unsupported */ }
+            }
+        };
+        requestWakeLock();
+        const onVisibilityForWake = () => {
+            if (document.visibilityState === "visible" && !wakeLock) requestWakeLock();
+        };
+        document.addEventListener("visibilitychange", onVisibilityForWake);
+
+        return () => {
+            clearInterval(interval);
+            if (watchId !== null && navigator.geolocation?.clearWatch) {
+                navigator.geolocation.clearWatch(watchId);
+            }
+            document.removeEventListener("visibilitychange", onVisibility);
+            document.removeEventListener("visibilitychange", onVisibilityForWake);
+            if (wakeLock) { try { wakeLock.release(); } catch (_) {} }
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [myReg?.id]);
 

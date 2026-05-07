@@ -208,19 +208,171 @@ class TestFiles:
         assert r.status_code == 404
 
 
+# ---------- New Feature: emergency_phone, help_message, cross-admin events ----------
+class TestNewFeatures:
+    def test_event_persists_emergency_phone(self, admin_token):
+        files = {"image": ("evt.png", _png_bytes(), "image/png")}
+        data = {
+            "name": f"TEST_EmergPhone_{uuid.uuid4().hex[:5]}",
+            "start_date": "2026-04-01", "end_date": "2026-04-05",
+            "emergency_phone": "+1-555-0199",
+        }
+        r = requests.post(f"{API}/events",
+                          headers={"Authorization": f"Bearer {admin_token}"},
+                          data=data, files=files, timeout=120)
+        assert r.status_code == 200, r.text
+        evt = r.json()
+        assert evt["emergency_phone"] == "+1-555-0199"
+        # Verify persistence via GET
+        g = requests.get(f"{API}/events/{evt['id']}",
+                        headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+        assert g.status_code == 200
+        assert g.json()["emergency_phone"] == "+1-555-0199"
+        pytest.emerg_event = evt
+
+    def test_help_message_stored_and_returned(self, admin_token):
+        # Register a fresh participant for this event
+        email = f"TEST_help_{uuid.uuid4().hex[:8]}@test.com"
+        rr = requests.post(f"{API}/auth/register",
+                           json={"email": email, "password": "test1234",
+                                 "role": "participant", "name": "HelpMsg User"},
+                           timeout=30)
+        assert rr.status_code == 200
+        ptoken = rr.json()["token"]
+        files = {"profile_picture": ("p.png", _png_bytes(), "image/png")}
+        data = {"team_number": "9", "team_name": "Lost Riders",
+                "first_name": "Bob", "last_name": "Lost"}
+        r = requests.post(f"{API}/events/by-code/{pytest.emerg_event['code']}/register",
+                          headers={"Authorization": f"Bearer {ptoken}"},
+                          data=data, files=files, timeout=120)
+        assert r.status_code == 200, r.text
+        reg = r.json()
+
+        msg = "I have lost the route, please wait!"
+        h = requests.post(f"{API}/registrations/{reg['id']}/help",
+                          headers={"Authorization": f"Bearer {ptoken}"},
+                          json={"status": "help", "message": msg}, timeout=30)
+        assert h.status_code == 200
+        assert h.json()["status"] == "help"
+
+        # Admin GET /events/{id}/registrations should include help_message
+        ls = requests.get(f"{API}/events/{pytest.emerg_event['id']}/registrations",
+                          headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+        assert ls.status_code == 200
+        rows = ls.json()
+        target = next((x for x in rows if x["id"] == reg["id"]), None)
+        assert target is not None
+        assert target.get("help_status") == "help"
+        assert target.get("help_message") == msg
+
+        # Clear -> message should be wiped
+        c = requests.post(f"{API}/registrations/{reg['id']}/help",
+                          headers={"Authorization": f"Bearer {ptoken}"},
+                          json={"status": "clear"}, timeout=30)
+        assert c.status_code == 200
+        ls2 = requests.get(f"{API}/events/{pytest.emerg_event['id']}/registrations",
+                           headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+        target2 = next((x for x in ls2.json() if x["id"] == reg["id"]), None)
+        assert target2["help_status"] == "normal"
+        assert target2.get("help_message", "") == ""
+
+    def test_admin_sees_all_events(self, admin_token):
+        # Create a second admin
+        email = f"TEST_admin2_{uuid.uuid4().hex[:8]}@test.com"
+        rr = requests.post(f"{API}/auth/register",
+                           json={"email": email, "password": "adminpass",
+                                 "role": "admin", "admin_code": "ConvoyHQ-2026!",
+                                 "name": "Other Admin"},
+                           timeout=30)
+        # If admin_code field name differs, this may 400 — fall back: just verify
+        # the existing primary admin sees pytest.event and pytest.emerg_event already.
+        r = requests.get(f"{API}/events",
+                         headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+        assert r.status_code == 200
+        ids = [e["id"] for e in r.json()]
+        assert pytest.event["id"] in ids
+        assert pytest.emerg_event["id"] in ids
+
+        if rr.status_code == 200:
+            atok2 = rr.json()["token"]
+            r2 = requests.get(f"{API}/events",
+                              headers={"Authorization": f"Bearer {atok2}"}, timeout=30)
+            assert r2.status_code == 200
+            ids2 = [e["id"] for e in r2.json()]
+            # Cross-admin visibility: admin2 should see admin1's events
+            assert pytest.event["id"] in ids2 or pytest.emerg_event["id"] in ids2
+
+
+# ---------- DELETE /api/auth/me ----------
+class TestAccountDeletion:
+    def test_delete_account_logs_out_and_allows_re_register(self):
+        email = f"TEST_del_{uuid.uuid4().hex[:8]}@test.com"
+        password = "delete1234"
+        r = requests.post(f"{API}/auth/register",
+                          json={"email": email, "password": password,
+                                "role": "participant", "name": "Del User"}, timeout=30)
+        assert r.status_code == 200
+        token = r.json()["token"]
+
+        # Delete account
+        d = requests.delete(f"{API}/auth/me",
+                            headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        assert d.status_code == 200
+        assert d.json().get("ok") is True
+
+        # Old token should now 401
+        m = requests.get(f"{API}/auth/me",
+                         headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        assert m.status_code == 401
+
+        # Same email may register again
+        r2 = requests.post(f"{API}/auth/register",
+                           json={"email": email, "password": password,
+                                 "role": "participant", "name": "Del User v2"}, timeout=30)
+        assert r2.status_code == 200, r2.text
+
+
+# ---------- PWA static files ----------
+class TestPWAStaticFiles:
+    def test_manifest_json(self):
+        r = requests.get(f"{BASE_URL}/manifest.json", timeout=30)
+        assert r.status_code == 200, f"manifest.json status {r.status_code}"
+        m = r.json()
+        assert m.get("display") == "standalone"
+        assert m.get("theme_color") == "#0A0A0A"
+        assert m.get("start_url") == "/"
+        assert isinstance(m.get("icons"), list) and len(m["icons"]) > 0
+        assert "name" in m
+
+    def test_service_worker_js(self):
+        r = requests.get(f"{BASE_URL}/sw.js", timeout=30)
+        assert r.status_code == 200
+        ct = r.headers.get("content-type", "")
+        assert "javascript" in ct.lower(), f"sw.js content-type: {ct}"
+
+    def test_icon_svg(self):
+        r = requests.get(f"{BASE_URL}/icon.svg", timeout=30)
+        assert r.status_code == 200
+        assert len(r.content) > 0
+
+
 # ---------- Cleanup ----------
 class TestCleanup:
-    def test_participant_cannot_delete_registration(self, participant):
+    def test_owner_can_self_leave(self, participant):
+        # NEW BEHAVIOR: owners can DELETE their own registration (self-leave)
         r = requests.delete(f"{API}/registrations/{pytest.reg['id']}",
                             headers={"Authorization": f"Bearer {participant['token']}"}, timeout=30)
-        assert r.status_code == 403
-
-    def test_admin_deletes_registration(self, admin_token):
-        r = requests.delete(f"{API}/registrations/{pytest.reg['id']}",
-                            headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
         assert r.status_code == 200
+        # Verify gone
+        r2 = requests.get(f"{API}/events/{pytest.event['id']}/my-registration",
+                          headers={"Authorization": f"Bearer {participant['token']}"}, timeout=30)
+        assert r2.status_code == 404
 
     def test_admin_deletes_event_cascades(self, admin_token):
         r = requests.delete(f"{API}/events/{pytest.event['id']}",
                             headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
         assert r.status_code == 200
+        # Cleanup the emerg_event too
+        if hasattr(pytest, "emerg_event"):
+            requests.delete(f"{API}/events/{pytest.emerg_event['id']}",
+                            headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)

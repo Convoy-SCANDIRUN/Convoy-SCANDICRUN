@@ -9,6 +9,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ParticipantDashboard from "@/pages/ParticipantDashboard";
 import JoinRedirect from "@/pages/JoinRedirect";
+import InstallPrompt from "@/components/InstallPrompt";
 import { Toaster } from "@/components/ui/sonner";
 
 function Protected({ children, role }) {
@@ -81,6 +82,7 @@ export default function App() {
                     },
                 }}
             />
+            <InstallPrompt />
         </AuthProvider>
     );
 }

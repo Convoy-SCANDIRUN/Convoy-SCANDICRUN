@@ -21,6 +21,9 @@ Track participants on a road trip. Admins create events; participants register v
 - Admin can manage and delete events and registrations
 - Browser geolocation for live tracking
 
+## Recently shipped (Feb 2026)
+- **Circular fallback avatars everywhere** — `lib/avatar.js` generates deterministic colored SVG avatars with team initials. Used in map markers (`MapView`), admin participant list + SOS dispatch dialog (`AdminDashboard`), and participants overview (`ParticipantDashboard`). Replaces the generic Unsplash placeholder so every team always shows a clean circular avatar even without an uploaded photo.
+
 ## What's been implemented (2026-02)
 - JWT auth (register/login/me/logout), admin seed (admin@roadtrip.com / admin123)
 - Event CRUD (admin) with image upload to Emergent Object Storage

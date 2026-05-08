@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fileUrl } from "@/lib/api";
+import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { Crosshair, Locate } from "lucide-react";
 
 const DEFAULT_CENTER = [48.8566, 2.3522]; // Paris fallback
@@ -12,9 +12,8 @@ function buildIcon(reg, opts = {}) {
     const { hideSos = false, isSelf = false } = opts;
     let status = reg.help_status || "normal";
     if (status === "sos" && hideSos) status = "normal"; // crew-only red glow
-    const pic = reg.profile_picture_path
-        ? fileUrl(reg.profile_picture_path)
-        : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60";
+    const pic = avatarUrl(reg);
+    const fallback = fallbackAvatar(reg);
     const labelText = `T${reg.team_number} · ${reg.team_name}`;
     const showSelf = isSelf && status === "normal";
     const label = isSelf ? `${labelText} · YOU` : labelText;
@@ -25,7 +24,7 @@ function buildIcon(reg, opts = {}) {
     const html = `
       <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
         ${glow}
-        <img src="${pic}" class="marker-pic ${status}${extraClass}" onerror="this.src='https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60'" />
+        <img src="${pic}" class="marker-pic ${status}${extraClass}" onerror="this.onerror=null;this.src='${fallback}'" />
         <div class="marker-label${showSelf ? ' self' : ''}">${label}</div>
       </div>`;
     return L.divIcon({

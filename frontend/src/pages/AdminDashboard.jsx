@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
+import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -473,14 +474,14 @@ export default function AdminDashboard() {
                                      }`}>
                                     <div className="flex items-center gap-3">
                                         <img
-                                            src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
+                                            src={avatarUrl(r)}
                                             alt=""
                                             className={`w-10 h-10 rounded-full object-cover border ${
                                                 r.help_status === "sos" ? "border-[#FF3B30] shadow-[0_0_10px_rgba(255,59,48,0.6)]" :
                                                 r.help_status === "help" ? "border-[#FFCC00]" :
                                                 "border-white/20"
                                             }`}
-                                            onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
+                                            onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
                                         />
                                         <div className="flex-1 min-w-0">
                                             <p className={`text-sm font-bold truncate ${r.help_status === "sos" ? "text-[#FF3B30]" : ""}`}>
@@ -617,10 +618,10 @@ export default function AdminDashboard() {
                                 <div className="flex items-center gap-3 border border-[#FF3B30]/40 bg-[#FF3B30]/10 p-3"
                                      data-testid="sos-team-info">
                                     <img
-                                        src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
+                                        src={avatarUrl(r)}
                                         alt=""
                                         className="w-14 h-14 rounded-full object-cover border-2 border-[#FF3B30] shadow-[0_0_18px_rgba(255,59,48,0.6)]"
-                                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
+                                        onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
                                     />
                                     <div className="min-w-0">
                                         <p className="font-display text-xl font-black uppercase">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
+import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1009,10 +1010,10 @@ export default function ParticipantDashboard() {
                                          "border-white/10"
                                      }`}>
                                     <img
-                                        src={r.profile_picture_path ? fileUrl(r.profile_picture_path) : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"}
+                                        src={avatarUrl(r)}
                                         alt=""
                                         className="w-10 h-10 rounded-full object-cover border border-white/20 flex-shrink-0"
-                                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60"; }}
+                                        onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
                                     />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold truncate">

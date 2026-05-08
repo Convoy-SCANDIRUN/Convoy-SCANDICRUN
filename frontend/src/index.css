@@ -75,6 +75,11 @@ body {
     color: #fff !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
+/* Push the zoom buttons below the fixed topbar so they're not hidden behind it */
+.leaflet-top.leaflet-left {
+    top: calc(72px + env(safe-area-inset-top, 0px));
+    left: 8px;
+}
 .leaflet-control-attribution {
     background: rgba(255, 255, 255, 0.85) !important;
     color: #555 !important;

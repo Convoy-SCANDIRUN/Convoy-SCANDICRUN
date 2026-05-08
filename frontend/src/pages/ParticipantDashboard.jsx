@@ -774,7 +774,7 @@ export default function ParticipantDashboard() {
             </div>
 
             {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
-            <div className="fixed bottom-[160px] sm:bottom-[180px] left-3 sm:left-4 z-[1102] flex flex-col gap-2 pwa-stack-tight" data-testid="bottom-left-stack">
+            <div className="fixed bottom-[120px] sm:bottom-[140px] left-3 sm:left-4 z-[1102] flex flex-col gap-2 pwa-stack-tight" data-testid="bottom-left-stack">
                 <button type="button" onClick={() => setShowParticipantsList(true)}
                         data-testid="stats-badge"
                         className="glass px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-2 hover:bg-white/10 transition text-left"
@@ -816,10 +816,10 @@ export default function ParticipantDashboard() {
             </div>
 
             {/* Help / SOS floating buttons — fixed so always visible.
-                Bottom offset 56px clears the centered "Made with Emergent" badge (40px high).
+                Browser mode: 14px above the centered Emergent badge (z-1099 keeps it underneath).
                 In PWA mode the badge is hidden via CSS, so .pwa-bottom-tight pulls the row closer to the screen edge. */}
             {myReg && (
-                <div className="fixed bottom-[56px] sm:bottom-[60px] left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3 pwa-bottom-tight"
+                <div className="fixed bottom-[14px] sm:bottom-[18px] left-3 right-3 sm:left-4 sm:right-4 z-[1100] flex flex-col items-center gap-1.5 sm:gap-3 pwa-bottom-tight"
                      data-testid="help-controls">
                     {myReg.help_status === "help" && (
                         <button onClick={clearStatus} data-testid="clear-status-button"

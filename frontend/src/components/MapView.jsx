@@ -1,10 +1,12 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fileUrl } from "@/lib/api";
+import { Crosshair, Locate } from "lucide-react";
 
 const DEFAULT_CENTER = [48.8566, 2.3522]; // Paris fallback
 const DEFAULT_ZOOM = 5;
+const FOCUS_ZOOM = 14;
 
 function buildIcon(reg, opts = {}) {
     const { hideSos = false, isSelf = false } = opts;
@@ -14,7 +16,7 @@ function buildIcon(reg, opts = {}) {
         ? fileUrl(reg.profile_picture_path)
         : "https://images.unsplash.com/photo-1702482527875-e16d07f0d91b?crop=entropy&cs=srgb&fm=jpg&w=80&q=60";
     const labelText = `T${reg.team_number} · ${reg.team_name}`;
-    const showSelf = isSelf && status === "normal"; // help/sos visualisation wins over green self ring
+    const showSelf = isSelf && status === "normal";
     const label = isSelf ? `${labelText} · YOU` : labelText;
     const glow = status === "sos" ? '<div class="marker-glow-sos"></div>'
                : status === "help" ? '<div class="marker-glow-help"></div>'
@@ -34,13 +36,39 @@ function buildIcon(reg, opts = {}) {
     });
 }
 
-function FitBounds({ points }) {
+/** Centers the map on `selfPosition` once on first mount, refits / re-centres
+ *  whenever `fitNonce` changes (the parent's "Reset view" button). */
+function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self" }) {
     const map = useMap();
+    const initialised = useRef(false);
+
     useEffect(() => {
-        if (!points.length) return;
-        const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
-        if (bounds.isValid()) map.fitBounds(bounds, { padding: [80, 80], maxZoom: 13 });
-    }, [points, map]);
+        if (initialised.current) return;
+        if (selfPosition) {
+            map.setView(selfPosition, FOCUS_ZOOM, { animate: false });
+            initialised.current = true;
+        } else if (allPoints.length) {
+            const bounds = L.latLngBounds(allPoints);
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [60, 60], maxZoom: FOCUS_ZOOM });
+                initialised.current = true;
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selfPosition, allPoints]);
+
+    // Re-fit only when the user clicks "Reset view"
+    useEffect(() => {
+        if (fitNonce === 0) return; // initial render
+        if (defaultMode === "self" && selfPosition) {
+            map.setView(selfPosition, FOCUS_ZOOM, { animate: true });
+        } else if (allPoints.length) {
+            const bounds = L.latLngBounds(allPoints);
+            if (bounds.isValid()) map.fitBounds(bounds, { padding: [60, 60], maxZoom: FOCUS_ZOOM });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fitNonce]);
+
     return null;
 }
 
@@ -49,18 +77,40 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
         () => registrations.filter((r) => r.lat != null && r.lng != null),
         [registrations]
     );
+    const selfReg = useMemo(
+        () => placed.find((r) => r.id === selfId),
+        [placed, selfId]
+    );
+    const selfPosition = selfReg ? [selfReg.lat, selfReg.lng] : null;
+    const allPoints = useMemo(() => placed.map((r) => [r.lat, r.lng]), [placed]);
+
+    const [fitNonce, setFitNonce] = useState(0);
+    const [resetMode, setResetMode] = useState("self"); // "self" | "all"
+
+    const recenterOnSelf = () => { setResetMode("self"); setFitNonce((n) => n + 1); };
+    const fitAll = () => { setResetMode("all"); setFitNonce((n) => n + 1); };
 
     return (
-        <div style={{ height, width: "100%" }} data-testid="overview-map">
+        <div style={{ height, width: "100%", position: "relative" }} data-testid="overview-map">
             <MapContainer
-                center={DEFAULT_CENTER}
-                zoom={DEFAULT_ZOOM}
+                center={selfPosition || DEFAULT_CENTER}
+                zoom={selfPosition ? FOCUS_ZOOM : DEFAULT_ZOOM}
                 style={{ height: "100%", width: "100%" }}
                 scrollWheelZoom={true}
+                zoomControl={true}
+                dragging={true}
+                doubleClickZoom={true}
+                touchZoom={true}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                />
+                <MapController
+                    selfPosition={selfPosition}
+                    allPoints={allPoints}
+                    fitNonce={fitNonce}
+                    defaultMode={resetMode}
                 />
                 {placed.map((r) => {
                     const isSelf = r.id === selfId;
@@ -99,8 +149,33 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                         </Marker>
                     );
                 })}
-                <FitBounds points={placed} />
             </MapContainer>
+
+            {/* Map control overlay — Reset / Center on me */}
+            <div className="absolute right-3 top-16 z-[400] flex flex-col gap-1" data-testid="map-controls">
+                {selfPosition && (
+                    <button
+                        onClick={recenterOnSelf}
+                        type="button"
+                        data-testid="map-center-self-button"
+                        title="Center on me"
+                        className="glass border border-[#34C759]/40 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white"
+                    >
+                        <Locate className="w-3.5 h-3.5 text-[#34C759]" />
+                        <span className="text-[10px] uppercase tracking-wider font-bold">Me</span>
+                    </button>
+                )}
+                <button
+                    onClick={fitAll}
+                    type="button"
+                    data-testid="map-reset-button"
+                    title="Reset view (fit all participants)"
+                    className="glass border border-white/15 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white"
+                >
+                    <Crosshair className="w-3.5 h-3.5 text-[#007AFF]" />
+                    <span className="text-[10px] uppercase tracking-wider font-bold">All</span>
+                </button>
+            </div>
         </div>
     );
 }

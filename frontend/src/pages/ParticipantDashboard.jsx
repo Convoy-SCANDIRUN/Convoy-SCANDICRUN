@@ -949,14 +949,16 @@ export default function ParticipantDashboard() {
                     </DialogHeader>
                     <div className="space-y-4">
                         {activeEvent?.emergency_phone ? (
-                            <a href={`tel:${activeEvent.emergency_phone.replace(/\s+/g, "")}`}
-                               data-testid="sos-phone-link"
-                               className="block border border-[#FF3B30] bg-[#FF3B30]/10 p-4 text-center hover:bg-[#FF3B30]/20 transition">
+                            <button
+                                type="button"
+                                onClick={() => { callEmergency(); setSosOpen(false); }}
+                                data-testid="sos-phone-link"
+                                className="w-full block border border-[#FF3B30] bg-[#FF3B30]/10 p-4 text-center hover:bg-[#FF3B30]/20 transition cursor-pointer">
                                 <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 mb-1">Tap to call</p>
                                 <p className="font-display text-3xl font-black tracking-tight text-white break-all">
                                     {activeEvent.emergency_phone}
                                 </p>
-                            </a>
+                            </button>
                         ) : (
                             <div className="border border-white/20 p-4 text-sm text-zinc-300" data-testid="sos-no-phone">
                                 No emergency number is configured for this event. Please contact the event

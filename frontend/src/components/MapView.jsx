@@ -2,7 +2,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
-import { Crosshair, Locate } from "lucide-react";
+import { Crosshair, Locate, Plus, Minus } from "lucide-react";
 
 const DEFAULT_CENTER = [48.8566, 2.3522]; // Paris fallback
 const DEFAULT_ZOOM = 5;
@@ -85,9 +85,12 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
 
     const [fitNonce, setFitNonce] = useState(0);
     const [resetMode, setResetMode] = useState("self"); // "self" | "all"
+    const mapRef = useRef(null);
 
     const recenterOnSelf = () => { setResetMode("self"); setFitNonce((n) => n + 1); };
     const fitAll = () => { setResetMode("all"); setFitNonce((n) => n + 1); };
+    const zoomIn = () => mapRef.current?.zoomIn();
+    const zoomOut = () => mapRef.current?.zoomOut();
 
     return (
         <div style={{ height, width: "100%", position: "relative" }} data-testid="overview-map">
@@ -96,10 +99,11 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                 zoom={selfPosition ? FOCUS_ZOOM : DEFAULT_ZOOM}
                 style={{ height: "100%", width: "100%" }}
                 scrollWheelZoom={true}
-                zoomControl={true}
+                zoomControl={false}
                 dragging={true}
                 doubleClickZoom={true}
                 touchZoom={true}
+                ref={mapRef}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -150,15 +154,35 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                 })}
             </MapContainer>
 
-            {/* Map control overlay — Reset / Center on me */}
-            <div className="absolute right-3 top-16 z-[400] flex flex-col gap-1" data-testid="map-controls">
+            {/* Map control overlay — Zoom in/out + Center on me + Fit all,
+                stacked together on the right edge so all four buttons share the
+                same vertical column. */}
+            <div className="absolute right-3 top-3 z-[400] flex flex-col gap-1" data-testid="map-controls">
+                <button
+                    onClick={zoomIn}
+                    type="button"
+                    data-testid="map-zoom-in-button"
+                    title="Zoom in"
+                    className="glass border border-white/15 px-2 py-1.5 flex items-center justify-center hover:bg-white/10 transition text-white w-[60px]"
+                >
+                    <Plus className="w-3.5 h-3.5" />
+                </button>
+                <button
+                    onClick={zoomOut}
+                    type="button"
+                    data-testid="map-zoom-out-button"
+                    title="Zoom out"
+                    className="glass border border-white/15 px-2 py-1.5 flex items-center justify-center hover:bg-white/10 transition text-white w-[60px]"
+                >
+                    <Minus className="w-3.5 h-3.5" />
+                </button>
                 {selfPosition && (
                     <button
                         onClick={recenterOnSelf}
                         type="button"
                         data-testid="map-center-self-button"
                         title="Center on me"
-                        className="glass border border-[#34C759]/40 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white"
+                        className="glass border border-[#34C759]/40 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white w-[60px]"
                     >
                         <Locate className="w-3.5 h-3.5 text-[#34C759]" />
                         <span className="text-[10px] uppercase tracking-wider font-bold">Me</span>
@@ -169,7 +193,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     type="button"
                     data-testid="map-reset-button"
                     title="Reset view (fit all participants)"
-                    className="glass border border-white/15 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white"
+                    className="glass border border-white/15 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white w-[60px]"
                 >
                     <Crosshair className="w-3.5 h-3.5 text-[#007AFF]" />
                     <span className="text-[10px] uppercase tracking-wider font-bold">All</span>

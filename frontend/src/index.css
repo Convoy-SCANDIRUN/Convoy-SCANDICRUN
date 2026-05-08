@@ -94,13 +94,16 @@ body {
 }
 
 .marker-pic {
-    width: 48px;
-    height: 48px;
+    width: 48px !important;
+    height: 48px !important;
+    max-width: none !important;
     border-radius: 9999px;
     object-fit: cover;
     border: 2px solid #007AFF;
     box-shadow: 0 0 12px rgba(0, 122, 255, 0.6);
     background: #141414;
+    display: block;
+    flex-shrink: 0;
 }
 .marker-pic.self {
     border-color: #34C759;

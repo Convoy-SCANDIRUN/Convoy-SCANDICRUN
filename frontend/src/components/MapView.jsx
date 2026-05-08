@@ -24,7 +24,7 @@ function buildIcon(reg, opts = {}) {
     const html = `
       <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
         ${glow}
-        <img src="${pic}" class="marker-pic ${status}${extraClass}" onerror="this.onerror=null;this.src='${fallback}'" />
+        <img src="${pic}" width="48" height="48" class="marker-pic ${status}${extraClass}" onerror="this.onerror=null;this.src='${fallback}'" />
         <div class="marker-label${showSelf ? ' self' : ''}">${label}</div>
       </div>`;
     return L.divIcon({

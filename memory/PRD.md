@@ -22,7 +22,9 @@ Track participants on a road trip. Admins create events; participants register v
 - Browser geolocation for live tracking
 
 ## Recently shipped (Feb 2026)
-- **Circular fallback avatars everywhere** — `lib/avatar.js` generates deterministic colored SVG avatars with team initials. Used in map markers (`MapView`), admin participant list + SOS dispatch dialog (`AdminDashboard`), and participants overview (`ParticipantDashboard`). Replaces the generic Unsplash placeholder so every team always shows a clean circular avatar even without an uploaded photo.
+- **PWA auto-update flow** — `sw.js` bumped to v3 with stale-while-revalidate for static assets; `index.js` now auto-reloads exactly once when a new service worker takes control + polls hourly. Installed apps now pick up new code on next launch without a manual reinstall.
+- **Round map markers fix** — Tailwind preflight's `img { height: auto }` was overriding `.marker-pic { width: 48px }`, leaving photos rendered as ovals (e.g. 108×48). Fixed with `!important` on width/height/max-width and explicit `width="48" height="48"` attributes on the marker img.
+- **Circular fallback avatars everywhere** — `lib/avatar.js` generates deterministic colored SVG avatars with team initials. Used in map markers, admin participant list + SOS dispatch dialog, and participants overview. Replaces the generic Unsplash placeholder.
 
 ## What's been implemented (2026-02)
 - JWT auth (register/login/me/logout), admin seed (admin@roadtrip.com / admin123)

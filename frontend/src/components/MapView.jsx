@@ -156,8 +156,8 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
 
             {/* Map control overlay — Zoom in/out + Center on me + Fit all,
                 stacked together on the right edge so all four buttons share the
-                same vertical column. */}
-            <div className="absolute right-3 top-3 z-[400] flex flex-col gap-1" data-testid="map-controls">
+                same vertical column. Positioned below the topbar event title. */}
+            <div className="absolute right-3 top-24 z-[400] flex flex-col gap-1" data-testid="map-controls">
                 <button
                     onClick={zoomIn}
                     type="button"

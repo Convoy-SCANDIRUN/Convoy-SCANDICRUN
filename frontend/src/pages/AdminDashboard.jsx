@@ -143,8 +143,17 @@ export default function AdminDashboard() {
     const [shareEvent, setShareEvent] = useState(null);
     const [editEvent, setEditEvent] = useState(null);
     const [sosAlert, setSosAlert] = useState(null); // { reg, openedAt }
+    const [focusTarget, setFocusTarget] = useState(null);
     const prevStatusesRef = useRef({});
     const shareUrl = shareEvent ? `${window.location.origin}/join/${shareEvent.code}` : "";
+
+    const focusOnTeam = (r) => {
+        if (r.lat == null || r.lng == null) {
+            toast.info(`Team ${r.team_number} · ${r.team_name} hasn't shared a location yet`);
+            return;
+        }
+        setFocusTarget({ id: r.id, lat: r.lat, lng: r.lng, nonce: Date.now() });
+    };
 
     const copyShareUrl = async () => {
         try {
@@ -335,7 +344,7 @@ export default function AdminDashboard() {
 
             {/* Map fills viewport */}
             <div className="absolute inset-0 pt-[72px]">
-                <MapView registrations={registrations} />
+                <MapView registrations={registrations} focusTarget={focusTarget} />
             </div>
 
             {/* Sidebar */}
@@ -473,23 +482,28 @@ export default function AdminDashboard() {
                                                  : "border-white/10"
                                      }`}>
                                     <div className="flex items-center gap-3">
-                                        <img
-                                            src={avatarUrl(r)}
-                                            alt=""
-                                            className={`w-10 h-10 rounded-full object-cover border ${
-                                                r.help_status === "sos" ? "border-[#FF3B30] shadow-[0_0_10px_rgba(255,59,48,0.6)]" :
-                                                r.help_status === "help" ? "border-[#FFCC00]" :
-                                                "border-white/20"
-                                            }`}
-                                            onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`text-sm font-bold truncate ${r.help_status === "sos" ? "text-[#FF3B30]" : ""}`}>
-                                                {r.help_status === "sos" && <span className="mr-1">🚨</span>}
-                                                T{r.team_number} · {r.team_name}
-                                            </p>
-                                            <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
-                                        </div>
+                                        <button type="button" onClick={() => focusOnTeam(r)}
+                                                data-testid={`focus-participant-${r.id}`}
+                                                title={r.lat != null ? "Focus map on this team" : "No location yet"}
+                                                className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition">
+                                            <img
+                                                src={avatarUrl(r)}
+                                                alt=""
+                                                className={`w-10 h-10 rounded-full object-cover border ${
+                                                    r.help_status === "sos" ? "border-[#FF3B30] shadow-[0_0_10px_rgba(255,59,48,0.6)]" :
+                                                    r.help_status === "help" ? "border-[#FFCC00]" :
+                                                    "border-white/20"
+                                                }`}
+                                                onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-bold truncate ${r.help_status === "sos" ? "text-[#FF3B30]" : ""}`}>
+                                                    {r.help_status === "sos" && <span className="mr-1">🚨</span>}
+                                                    T{r.team_number} · {r.team_name}
+                                                </p>
+                                                <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
+                                            </div>
+                                        </button>
                                         {r.help_status === "sos" && (
                                             <button onClick={() => setSosAlert({ reg: r, openedAt: Date.now() })}
                                                     data-testid={`open-sos-${r.id}`}

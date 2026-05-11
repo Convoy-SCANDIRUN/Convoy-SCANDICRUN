@@ -435,6 +435,16 @@ export default function ParticipantDashboard() {
     const [confirmAction, setConfirmAction] = useState(null);
     const [showParticipantsList, setShowParticipantsList] = useState(false);
     const [editProfileOpen, setEditProfileOpen] = useState(false);
+    const [focusTarget, setFocusTarget] = useState(null);
+
+    const focusOnTeam = (r) => {
+        if (r.lat == null || r.lng == null) {
+            toast.info(`${r.team_name} hasn't shared a location yet`);
+            return;
+        }
+        setFocusTarget({ id: r.id, lat: r.lat, lng: r.lng, nonce: Date.now() });
+        setShowParticipantsList(false);
+    };
 
     const loadEvents = async () => {
         const { data } = await api.get("/events");
@@ -771,7 +781,7 @@ export default function ParticipantDashboard() {
 
             {/* Map — leave room for fixed top + bottom bars */}
             <div className="absolute inset-0 pt-[60px] sm:pt-[72px] pb-[160px] sm:pb-[180px] pwa-map-pad-bottom">
-                <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} />
+                <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} focusTarget={focusTarget} />
             </div>
 
             {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
@@ -1005,12 +1015,15 @@ export default function ParticipantDashboard() {
                             const isMe = myReg?.id === r.id;
                             const isLive = r.lat != null && r.lng != null;
                             return (
-                                <div key={r.id} data-testid={`overview-row-${r.id}`}
-                                     className={`p-3 border flex items-center gap-3 ${
-                                         isMe ? "border-[#34C759] bg-[#34C759]/10" :
-                                         r.help_status === "help" ? "border-[#FFCC00] bg-[#FFCC00]/10" :
-                                         "border-white/10"
-                                     }`}>
+                                <button key={r.id} data-testid={`overview-row-${r.id}`}
+                                     type="button"
+                                     onClick={() => focusOnTeam(r)}
+                                     disabled={!isLive}
+                                     className={`w-full text-left p-3 border flex items-center gap-3 transition ${
+                                         isMe ? "border-[#34C759] bg-[#34C759]/10 hover:bg-[#34C759]/20" :
+                                         r.help_status === "help" ? "border-[#FFCC00] bg-[#FFCC00]/10 hover:bg-[#FFCC00]/20" :
+                                         "border-white/10 hover:bg-white/5"
+                                     } ${!isLive ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}>
                                     <img
                                         src={avatarUrl(r)}
                                         alt=""
@@ -1037,7 +1050,7 @@ export default function ParticipantDashboard() {
                                             <span className="text-[10px] uppercase tracking-wider font-bold text-[#FFCC00]">help</span>
                                         )}
                                     </div>
-                                </div>
+                                </button>
                             );
                         })}
                     </div>

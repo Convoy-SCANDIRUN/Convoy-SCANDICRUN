@@ -37,7 +37,7 @@ function buildIcon(reg, opts = {}) {
 
 /** Centers the map on `selfPosition` once on first mount, refits / re-centres
  *  whenever `fitNonce` changes (the parent's "Reset view" button). */
-function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self" }) {
+function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self", focusTarget }) {
     const map = useMap();
     const initialised = useRef(false);
 
@@ -68,10 +68,18 @@ function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self"
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fitNonce]);
 
+    // Focus on a specific participant whenever `focusTarget` changes.
+    // `nonce` ensures repeated clicks on the same team still re-center.
+    useEffect(() => {
+        if (!focusTarget || focusTarget.lat == null || focusTarget.lng == null) return;
+        map.flyTo([focusTarget.lat, focusTarget.lng], FOCUS_ZOOM, { duration: 0.6 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusTarget?.nonce]);
+
     return null;
 }
 
-export default function MapView({ registrations = [], height = "100%", hideSos = false, selfId = null }) {
+export default function MapView({ registrations = [], height = "100%", hideSos = false, selfId = null, focusTarget = null }) {
     const placed = useMemo(
         () => registrations.filter((r) => r.lat != null && r.lng != null),
         [registrations]
@@ -86,11 +94,23 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
     const [fitNonce, setFitNonce] = useState(0);
     const [resetMode, setResetMode] = useState("self"); // "self" | "all"
     const mapRef = useRef(null);
+    const markerRefs = useRef({});
 
     const recenterOnSelf = () => { setResetMode("self"); setFitNonce((n) => n + 1); };
     const fitAll = () => { setResetMode("all"); setFitNonce((n) => n + 1); };
     const zoomIn = () => mapRef.current?.zoomIn();
     const zoomOut = () => mapRef.current?.zoomOut();
+
+    // When the parent asks to focus on a team, open that marker's popup
+    // a moment after the flyTo animation kicks in so the user gets visual
+    // confirmation of which team was selected.
+    useEffect(() => {
+        if (!focusTarget?.id) return;
+        const m = markerRefs.current[focusTarget.id];
+        if (!m) return;
+        const t = setTimeout(() => { try { m.openPopup(); } catch (_) {} }, 350);
+        return () => clearTimeout(t);
+    }, [focusTarget?.nonce, focusTarget?.id]);
 
     return (
         <div style={{ height, width: "100%", position: "relative" }} data-testid="overview-map">
@@ -114,6 +134,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     allPoints={allPoints}
                     fitNonce={fitNonce}
                     defaultMode={resetMode}
+                    focusTarget={focusTarget}
                 />
                 {placed.map((r) => {
                     const isSelf = r.id === selfId;
@@ -125,6 +146,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                             position={[r.lat, r.lng]}
                             icon={buildIcon(r, { hideSos, isSelf })}
                             data-testid={`participant-marker-${r.help_status}`}
+                            ref={(el) => { if (el) markerRefs.current[r.id] = el; }}
                         >
                             <Popup className="rt-popup" maxWidth={260}>
                                 <div className="rt-popup-inner" data-testid={`marker-popup-${r.id}`}>

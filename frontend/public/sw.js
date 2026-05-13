@@ -4,18 +4,19 @@
  *   while the new bundle is fetched in the background, so the *next*
  *   visit picks up the latest code automatically.
  * - Never caches /api/*: live data must always hit the network.
+ * - Periodic Background Sync: where supported (Android Chrome, installed PWA),
+ *   wakes any open client every minute and asks them to push their location.
+ *   On iOS this falls back gracefully — the OS simply never schedules the sync.
  *
  * Bump CACHE_VERSION whenever the caching strategy itself changes; old
  * caches are pruned in the activate handler.
  */
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const CACHE = `convoy-shell-${CACHE_VERSION}`;
 const SHELL = ["/", "/index.html", "/icon.svg", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
     event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => null));
-    // Activate the new worker as soon as it finishes installing so users
-    // never get stuck on a previous version.
     self.skipWaiting();
 });
 
@@ -27,7 +28,6 @@ self.addEventListener("activate", (event) => {
     })());
 });
 
-// Allow the page to force the waiting worker to take over immediately.
 self.addEventListener("message", (event) => {
     if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
@@ -37,10 +37,8 @@ self.addEventListener("fetch", (event) => {
     if (req.method !== "GET") return;
     const url = new URL(req.url);
 
-    // Never cache API or geolocation traffic — must be live.
     if (url.pathname.startsWith("/api/")) return;
 
-    // HTML navigations: network-first, fall back to cached shell when offline.
     if (req.mode === "navigate") {
         event.respondWith(
             fetch(req).then((res) => {
@@ -52,8 +50,6 @@ self.addEventListener("fetch", (event) => {
         return;
     }
 
-    // Same-origin static assets: stale-while-revalidate so users get an
-    // instant load AND the freshest copy on the next visit.
     if (url.origin === self.location.origin) {
         event.respondWith((async () => {
             const cache = await caches.open(CACHE);
@@ -65,4 +61,26 @@ self.addEventListener("fetch", (event) => {
             return cached || network || fetch(req);
         })());
     }
+});
+
+/* ---- Periodic background sync: nudge open clients to refresh location ---- */
+self.addEventListener("periodicsync", (event) => {
+    if (event.tag !== "convoy-location-ping") return;
+    event.waitUntil((async () => {
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+        for (const c of clients) {
+            c.postMessage({ type: "BG_PUSH_LOCATION" });
+        }
+    })());
+});
+
+/* ---- One-shot sync: replay any pending requests after we come back online ---- */
+self.addEventListener("sync", (event) => {
+    if (event.tag !== "convoy-location-ping") return;
+    event.waitUntil((async () => {
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+        for (const c of clients) {
+            c.postMessage({ type: "BG_PUSH_LOCATION" });
+        }
+    })());
 });

@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
+import InstallAppButton from "@/components/InstallAppButton";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
+import { buildEventPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +14,7 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 function EditEventDialog({ event, onClose, onSaved }) {
@@ -320,6 +322,7 @@ export default function AdminDashboard() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <InstallAppButton className="hidden sm:inline-flex" />
                     <Button onClick={logout} variant="ghost" data-testid="logout-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">
                         <LogOut className="w-4 h-4 mr-2" /> Logout
@@ -443,6 +446,22 @@ export default function AdminDashboard() {
                                                 title="Edit event"
                                                 className="text-zinc-500 hover:text-[#007AFF] transition">
                                             <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={async (ev) => {
+                                                    ev.stopPropagation();
+                                                    const toastId = toast.loading("Building event report…");
+                                                    try {
+                                                        const { data } = await api.get(`/events/${e.id}/summary`);
+                                                        buildEventPdf(data);
+                                                        toast.success("Report downloaded", { id: toastId });
+                                                    } catch (err) {
+                                                        toast.error(formatApiError(err), { id: toastId });
+                                                    }
+                                                }}
+                                                data-testid={`download-event-report-${e.id}`}
+                                                title="Download event report (PDF)"
+                                                className="text-zinc-500 hover:text-[#34C759] transition">
+                                            <FileDown className="w-4 h-4" />
                                         </button>
                                         <button onClick={(ev) => { ev.stopPropagation(); setShareEvent(e); }}
                                                 data-testid={`share-event-${e.id}`}

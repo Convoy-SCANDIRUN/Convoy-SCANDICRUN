@@ -356,6 +356,191 @@ class TestPWAStaticFiles:
         assert len(r.content) > 0
 
 
+# ---------- New Feature: Tracks + Summary endpoints (iteration 3) ----------
+class TestTracksAndSummary:
+    """Validates new track storage + per-registration and per-event summary endpoints."""
+
+    @pytest.fixture(scope="class")
+    def summary_ctx(self, admin_token):
+        """Create event spanning today+tomorrow, register participant, return ctx."""
+        # Build an event with a 2-day window centered on TODAY so location-update timestamps
+        # (which use server-side UTC `now`) fall within the day range.
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc).date()
+        start = today.isoformat()
+        end = (today + timedelta(days=1)).isoformat()
+        files = {"image": ("e.png", _png_bytes(), "image/png")}
+        data = {"name": f"TEST_Summary_{uuid.uuid4().hex[:5]}",
+                "start_date": start, "end_date": end}
+        r = requests.post(f"{API}/events",
+                          headers={"Authorization": f"Bearer {admin_token}"},
+                          data=data, files=files, timeout=120)
+        assert r.status_code == 200, r.text
+        evt = r.json()
+
+        # Two distinct participants - "owner" + "other"
+        def _mk_participant(label):
+            email = f"TEST_sum_{label}_{uuid.uuid4().hex[:6]}@test.com"
+            rr = requests.post(f"{API}/auth/register",
+                               json={"email": email, "password": "test1234",
+                                     "role": "participant", "name": f"Sum {label}"},
+                               timeout=30)
+            assert rr.status_code == 200, rr.text
+            return rr.json()["token"]
+
+        owner_tok = _mk_participant("owner")
+        other_tok = _mk_participant("other")
+
+        # Owner registers
+        rfiles = {"profile_picture": ("p.png", _png_bytes(), "image/png")}
+        rdata = {"team_number": "1", "team_name": "Roadrunners",
+                 "first_name": "Owner", "last_name": "One"}
+        r = requests.post(f"{API}/events/by-code/{evt['code']}/register",
+                          headers={"Authorization": f"Bearer {owner_tok}"},
+                          data=rdata, files=rfiles, timeout=120)
+        assert r.status_code == 200, r.text
+        owner_reg = r.json()
+
+        # Other registers too (so we have a non-owner participant in same event)
+        rdata2 = {"team_number": "2", "team_name": "Speeders",
+                  "first_name": "Other", "last_name": "Two"}
+        rfiles2 = {"profile_picture": ("p.png", _png_bytes(), "image/png")}
+        r2 = requests.post(f"{API}/events/by-code/{evt['code']}/register",
+                           headers={"Authorization": f"Bearer {other_tok}"},
+                           data=rdata2, files=rfiles2, timeout=120)
+        assert r2.status_code == 200, r2.text
+
+        ctx = {
+            "event": evt,
+            "owner_tok": owner_tok,
+            "other_tok": other_tok,
+            "owner_reg": owner_reg,
+        }
+        yield ctx
+        # cleanup
+        requests.delete(f"{API}/events/{evt['id']}",
+                        headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+
+    def test_location_post_creates_track_rows(self, summary_ctx):
+        """Each /location POST must append a row to db.tracks (append-only)."""
+        reg = summary_ctx["owner_reg"]
+        tok = summary_ctx["owner_tok"]
+        # First fetch baseline summary to know starting points
+        r0 = requests.get(f"{API}/registrations/{reg['id']}/summary",
+                          headers={"Authorization": f"Bearer {tok}"}, timeout=30)
+        assert r0.status_code == 200
+        base_pts = r0.json()["total"]["points"]
+
+        # Submit 3 location updates with a short pause between them (so timestamps differ)
+        coords = [(52.520, 13.405), (52.480, 13.300), (52.395, 13.060)]
+        for lat, lng in coords:
+            r = requests.post(f"{API}/registrations/{reg['id']}/location",
+                              headers={"Authorization": f"Bearer {tok}"},
+                              json={"lat": lat, "lng": lng}, timeout=30)
+            assert r.status_code == 200, r.text
+            time.sleep(1.1)  # ensure distinct ISO timestamps & nonzero dt
+
+        # Summary should now reflect base + 3 new points
+        r1 = requests.get(f"{API}/registrations/{reg['id']}/summary",
+                          headers={"Authorization": f"Bearer {tok}"}, timeout=30)
+        assert r1.status_code == 200
+        body = r1.json()
+        assert body["total"]["points"] == base_pts + 3, \
+            f"Expected {base_pts + 3} points, got {body['total']['points']}"
+
+    def test_haversine_distance_berlin_potsdam(self, summary_ctx):
+        """Berlin↔Potsdam straight-line is ~27 km. Owner just posted those 3 points."""
+        reg = summary_ctx["owner_reg"]
+        tok = summary_ctx["owner_tok"]
+        r = requests.get(f"{API}/registrations/{reg['id']}/summary",
+                         headers={"Authorization": f"Bearer {tok}"}, timeout=30)
+        assert r.status_code == 200
+        total = r.json()["total"]
+        # 52.520,13.405 -> 52.480,13.300 ~ ~8.3 km; -> 52.395,13.060 ~ ~19.4 km. Sum ~27-28 km.
+        assert 20.0 <= total["distance_km"] <= 35.0, \
+            f"Berlin→Potsdam expected ~27 km, got {total['distance_km']}"
+
+    def test_summary_shape_and_no_objectid(self, summary_ctx):
+        """Summary response must contain registration/event/total/daily and no _id."""
+        reg = summary_ctx["owner_reg"]
+        tok = summary_ctx["owner_tok"]
+        r = requests.get(f"{API}/registrations/{reg['id']}/summary",
+                         headers={"Authorization": f"Bearer {tok}"}, timeout=30)
+        assert r.status_code == 200
+        body = r.json()
+        for k in ("registration", "event", "total", "daily"):
+            assert k in body, f"missing key {k}"
+        # No _id leakage anywhere
+        import json as _json
+        raw = _json.dumps(body)
+        assert '"_id"' not in raw, "ObjectId leaked in summary response"
+
+        # daily entries cover full event window inclusively
+        days = body["daily"]
+        from datetime import date
+        s = date.fromisoformat(body["event"]["start_date"])
+        e = date.fromisoformat(body["event"]["end_date"])
+        expected_days = (e - s).days + 1
+        assert len(days) == expected_days, \
+            f"daily length {len(days)} != expected {expected_days}"
+        # Every daily row must have required stats keys
+        for entry in days:
+            for k in ("date", "distance_km", "duration_min", "moving_min",
+                      "stopped_min", "avg_kmh", "max_kmh", "points",
+                      "first_ts", "last_ts", "route"):
+                assert k in entry, f"daily entry missing {k}: {entry}"
+
+        # total must also have all stats keys
+        for k in ("distance_km", "duration_min", "moving_min", "stopped_min",
+                  "avg_kmh", "max_kmh", "points", "first_ts", "last_ts", "route"):
+            assert k in body["total"], f"total missing {k}"
+
+    def test_summary_other_participant_forbidden(self, summary_ctx):
+        """Non-owner participant must get 403."""
+        reg = summary_ctx["owner_reg"]
+        other_tok = summary_ctx["other_tok"]
+        r = requests.get(f"{API}/registrations/{reg['id']}/summary",
+                         headers={"Authorization": f"Bearer {other_tok}"}, timeout=30)
+        assert r.status_code == 403, f"expected 403, got {r.status_code}: {r.text}"
+
+    def test_summary_admin_allowed(self, summary_ctx, admin_token):
+        """Admin can call any registration summary."""
+        reg = summary_ctx["owner_reg"]
+        r = requests.get(f"{API}/registrations/{reg['id']}/summary",
+                         headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+        assert r.status_code == 200
+        assert r.json()["registration"]["id"] == reg["id"]
+
+    def test_event_summary_admin_shape_and_sorted(self, summary_ctx, admin_token):
+        """Event summary returns sorted leaderboard by total.distance_km desc, no _id."""
+        evt = summary_ctx["event"]
+        r = requests.get(f"{API}/events/{evt['id']}/summary",
+                         headers={"Authorization": f"Bearer {admin_token}"}, timeout=30)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        for k in ("event", "days", "teams"):
+            assert k in body
+        import json as _json
+        raw = _json.dumps(body)
+        assert '"_id"' not in raw, "ObjectId leaked in event summary"
+        # Sorted descending by total.distance_km
+        dists = [t["total"]["distance_km"] for t in body["teams"]]
+        assert dists == sorted(dists, reverse=True), f"teams not sorted desc: {dists}"
+        # days matches inclusive event window
+        from datetime import date
+        s = date.fromisoformat(evt["start_date"])
+        e = date.fromisoformat(evt["end_date"])
+        assert len(body["days"]) == (e - s).days + 1
+
+    def test_event_summary_participant_forbidden(self, summary_ctx):
+        """Participants get 403 on event-wide summary."""
+        evt = summary_ctx["event"]
+        tok = summary_ctx["owner_tok"]
+        r = requests.get(f"{API}/events/{evt['id']}/summary",
+                         headers={"Authorization": f"Bearer {tok}"}, timeout=30)
+        assert r.status_code == 403
+
+
 # ---------- Cleanup ----------
 class TestCleanup:
     def test_owner_can_self_leave(self, participant):

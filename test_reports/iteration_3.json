@@ -1,0 +1,43 @@
+{
+  "summary": "Added automated backend coverage for the new tracks + summary endpoints. 7 new pytest cases in TestTracksAndSummary all PASS; full suite is 38/38 PASS. Validated: (1) POST /api/registrations/{reg_id}/location appends a row to db.tracks (point count grows by N for N posts) — append-only; (2) registration summary shape includes registration/event/total/daily, daily covers full inclusive event window with all stats fields (distance_km, duration_min, moving_min, stopped_min, avg_kmh, max_kmh, points, first_ts, last_ts, route); (3) access control — owner OK, other participant 403, admin OK; (4) event summary admin-only (participants 403), shape { event, days, teams[] }, sorted desc by total.distance_km, days length matches inclusive window; (5) Haversine sanity — Berlin (52.520,13.405) → midpoint → Potsdam (52.395,13.060) totals 20–35 km (got ~27); (6) no _id leakage anywhere in either summary response.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/registrations/{reg_id}/summary & GET /api/events/{event_id}/summary", "issue": "Daily UTC-day filter uses string range `ts >= 'YYYY-MM-DDT00:00:00'` and `ts < 'YYYY-MM-DDT23:59:59.999999'` (line 602). Lexicographic comparison works correctly only if every track point's ts is stored as a UTC ISO string with the SAME timezone suffix (or none). Currently writes use `datetime.now(timezone.utc).isoformat()` which produces e.g. `2026-01-15T10:00:00+00:00` — comparison still works because the `+00:00` suffix sorts after `T23:59:59` boundary. If a future write path stored a `Z`-suffixed or naïve ts, the day bucketing could drift. Worth tightening to a proper datetime field with TZ-aware indexing."},
+      {"endpoint": "GET /api/events/{event_id}/summary", "issue": "N+1 Mongo queries: one tracks query per (registration × day). For an event with R teams and D days that's R*(D+1) queries. Fine for current scale (R<50, D<14) but consider a single $group aggregation if events grow."},
+      {"endpoint": "POST /api/events", "issue": "Carry-over from iter 2: intermittent 5xx from upstream objstore during image upload. Did not hit during this run."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_roadtrip_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "[Optional / Low] Consider storing tracks.ts as a real BSON Date (not ISO string) and using ranged datetime queries — current string comparison is correct given the existing single writer but is fragile.",
+    "[Optional / Low] Collapse the R*D track fetches in event_summary into a single aggregation pipeline for scale.",
+    "[Carry-over] CORS still uses allow_origin_regex='.*' with allow_credentials=True (still works because of Bearer fallback; cookie auth across origins won't)."
+  ],
+  "critical_code_review_comments": [
+    "_haversine_km uses correct WGS84 mean radius (6371.0088 km) and standard formula — verified against Berlin↔Potsdam (~27 km).",
+    "_stats_from_points correctly sorts by ts, skips first-only point, computes per-leg kmh, drops glitches (>250 km/h AND <5 km segment), and separates moving (<3 km/h or <10 m leg counted as stopped). All keys present in output, including empty `route` array when <2 points.",
+    "registration_summary correctly returns 403 for non-owner participants and allows admins (lines 633-636).",
+    "event_summary is admin-gated at line 672 — participants get 403.",
+    "All Mongo reads use {\"_id\": 0} projection — confirmed no ObjectId leakage in either summary endpoint via JSON dump check.",
+    "Tracks collection is created on first insert (line 486) — confirmed by the location-POST test running on a brand-new event with zero existing tracks.",
+    "MINOR: _stats_from_points docstring says glitch filter is >2 km in <2 s (>3600 km/h), but the code at line 569 actually drops `kmh > 250 and leg_km < 5`. Docstring should be updated to match the implementation (or vice versa).",
+    "MINOR: in _load_tracks day filter (line 602), end bound `T23:59:59.999999` is exclusive (`$lt`); a point with ts exactly `T23:59:59.999999` would not match but that's astronomically unlikely. Could use next-day `T00:00:00` to be unambiguous."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_roadtrip_api.py",
+    "/app/test_reports/iteration_3.json",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "success_rate": {"backend": "100% (38/38)", "frontend": "not tested this iteration"},
+  "test_credentials": "admin@roadtrip.com / admin123 (seeded). New TEST_-prefixed users created per test.",
+  "seed_data_creation": "TestTracksAndSummary creates one event (TEST_Summary_*) and two participants (owner+other) via a class-scoped fixture; cleanup deletes the event in the fixture teardown (cascades registrations) and TEST_-prefixed users remain in db.users (small, harmless).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run all backend tests with `pytest /app/backend/tests/ -v`. The new class TestTracksAndSummary requires a multi-second window (1.1s sleep between 3 location posts) — total runtime ~45s. Fixture uses today/tomorrow UTC dates for the event window so location timestamps fall inside the daily buckets — if you change to a fixed date, the daily array will sum to 0 km even though `total` is correct.",
+  "rca of the issue": "N/A — no functional bugs found. Two style/docstring nits flagged above."
+}

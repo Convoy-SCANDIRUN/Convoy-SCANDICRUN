@@ -1,19 +1,9 @@
 import { useEffect, useState } from "react";
 import { X, Download, Share } from "lucide-react";
+import usePwaInstall from "@/lib/usePwaInstall";
 
 const DISMISS_KEY = "rt_pwa_dismissed";
 const DISMISS_TTL_DAYS = 14;
-
-function isStandalone() {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(display-mode: standalone)").matches
-        || window.navigator.standalone === true;
-}
-
-function isIOS() {
-    if (typeof navigator === "undefined") return false;
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-}
 
 function recentlyDismissed() {
     try {
@@ -23,37 +13,22 @@ function recentlyDismissed() {
 }
 
 /**
- * Floating banner that prompts users to install the PWA.
- * - Android / Chrome / Edge: uses the `beforeinstallprompt` event.
- * - iOS Safari: shows manual "Share → Add to Home Screen" instructions.
+ * Floating banner that prompts users to install the PWA on first visit.
+ * Uses the shared `usePwaInstall` hook so logic stays in sync with the
+ * profile-settings "Install App" button.
  */
 export default function InstallPrompt() {
-    const [deferred, setDeferred] = useState(null);
+    const { canInstall, isStandalone, isIOS, promptInstall } = usePwaInstall();
     const [show, setShow] = useState(false);
     const [showIosHelp, setShowIosHelp] = useState(false);
 
     useEffect(() => {
-        if (isStandalone() || recentlyDismissed()) return;
-
-        const onPrompt = (e) => {
-            e.preventDefault();
-            setDeferred(e);
-            setShow(true);
-        };
-        window.addEventListener("beforeinstallprompt", onPrompt);
-
-        // iOS Safari does not fire beforeinstallprompt — show our own banner
-        // after a short delay so it doesn't feel pushy on first paint.
-        let timer;
-        if (isIOS()) {
-            timer = setTimeout(() => setShow(true), 4000);
-        }
-
-        return () => {
-            window.removeEventListener("beforeinstallprompt", onPrompt);
-            if (timer) clearTimeout(timer);
-        };
-    }, []);
+        if (isStandalone || recentlyDismissed()) return;
+        if (!canInstall) return;
+        // Slight delay on iOS so the banner doesn't feel pushy on first paint.
+        const timer = setTimeout(() => setShow(true), isIOS ? 4000 : 0);
+        return () => clearTimeout(timer);
+    }, [canInstall, isStandalone, isIOS]);
 
     const dismiss = () => {
         try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch {}
@@ -62,13 +37,9 @@ export default function InstallPrompt() {
     };
 
     const install = async () => {
-        if (deferred) {
-            deferred.prompt();
-            const { outcome } = await deferred.userChoice;
-            if (outcome === "accepted" || outcome === "dismissed") dismiss();
-        } else if (isIOS()) {
-            setShowIosHelp(true);
-        }
+        const result = await promptInstall();
+        if (result === "ios") setShowIosHelp(true);
+        else if (result === "accepted" || result === "dismissed") dismiss();
     };
 
     if (!show) return null;

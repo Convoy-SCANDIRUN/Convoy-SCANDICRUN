@@ -12,7 +12,8 @@ import string
 import requests
 import bcrypt
 import jwt as pyjwt
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date as date_cls
+from math import radians, sin, cos, atan2, sqrt
 from typing import Optional, List
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, UploadFile, File, Form, Depends, Query, Header
@@ -475,11 +476,22 @@ async def update_location(reg_id: str, body: LocationIn, user: dict = Depends(ge
     reg = await db.registrations.find_one({"id": reg_id})
     if not reg or reg["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Registration not found")
+    now_iso = datetime.now(timezone.utc).isoformat()
     await db.registrations.update_one(
         {"id": reg_id},
-        {"$set": {"lat": body.lat, "lng": body.lng,
-                  "last_update": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"lat": body.lat, "lng": body.lng, "last_update": now_iso}},
     )
+    # Append a track point so we can compute distance / duration / avg speed
+    # for the daily and event summaries. _id excluded everywhere on read.
+    await db.tracks.insert_one({
+        "id": str(uuid.uuid4()),
+        "registration_id": reg_id,
+        "event_id": reg["event_id"],
+        "user_id": reg["user_id"],
+        "lat": body.lat,
+        "lng": body.lng,
+        "ts": now_iso,
+    })
     return {"ok": True}
 
 @api_router.post("/registrations/{reg_id}/help")
@@ -501,6 +513,201 @@ async def update_help(reg_id: str, body: HelpIn, user: dict = Depends(get_curren
     }
     await db.registrations.update_one({"id": reg_id}, {"$set": update})
     return {"ok": True, "status": new_status}
+
+# ---------- Summaries / reports ----------
+
+def _haversine_km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
+    """Great-circle distance between two lat/lng pairs, in kilometres."""
+    R = 6371.0088
+    phi1 = radians(a_lat)
+    phi2 = radians(b_lat)
+    d_phi = radians(b_lat - a_lat)
+    d_lam = radians(b_lng - a_lng)
+    h = sin(d_phi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(d_lam / 2) ** 2
+    return 2 * R * atan2(sqrt(h), sqrt(1 - h))
+
+
+def _stats_from_points(points: list) -> dict:
+    """Compute distance/duration/speed metrics from a list of track points.
+
+    A point is `{lat, lng, ts}` with `ts` as an ISO-8601 string. Segments
+    with implausible jumps (>2 km in <2 s, i.e. >3600 km/h) are dropped to
+    avoid GPS glitches dominating the result.
+    """
+    pts = [p for p in points if p.get("lat") is not None and p.get("lng") is not None and p.get("ts")]
+    pts.sort(key=lambda p: p["ts"])
+    if len(pts) < 2:
+        return {
+            "points": len(pts),
+            "distance_km": 0.0,
+            "duration_min": 0.0,
+            "moving_min": 0.0,
+            "stopped_min": 0.0,
+            "avg_kmh": 0.0,
+            "max_kmh": 0.0,
+            "first_ts": pts[0]["ts"] if pts else None,
+            "last_ts": pts[-1]["ts"] if pts else None,
+            "route": [[p["lat"], p["lng"]] for p in pts],
+        }
+
+    distance_km = 0.0
+    moving_sec = 0.0
+    stopped_sec = 0.0
+    max_kmh = 0.0
+    for a, b in zip(pts, pts[1:]):
+        try:
+            ta = datetime.fromisoformat(a["ts"].replace("Z", "+00:00"))
+            tb = datetime.fromisoformat(b["ts"].replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        dt_sec = max(0.0, (tb - ta).total_seconds())
+        if dt_sec <= 0:
+            continue
+        leg_km = _haversine_km(a["lat"], a["lng"], b["lat"], b["lng"])
+        kmh = (leg_km / (dt_sec / 3600.0)) if dt_sec > 0 else 0.0
+        # Drop clear GPS glitches
+        if kmh > 250 and leg_km < 5:
+            continue
+        distance_km += leg_km
+        if kmh < 3.0 or leg_km < 0.01:
+            stopped_sec += dt_sec
+        else:
+            moving_sec += dt_sec
+            if kmh > max_kmh:
+                max_kmh = kmh
+
+    duration_sec = (
+        datetime.fromisoformat(pts[-1]["ts"].replace("Z", "+00:00"))
+        - datetime.fromisoformat(pts[0]["ts"].replace("Z", "+00:00"))
+    ).total_seconds()
+    avg_kmh = (distance_km / (moving_sec / 3600.0)) if moving_sec > 0 else 0.0
+    return {
+        "points": len(pts),
+        "distance_km": round(distance_km, 2),
+        "duration_min": round(duration_sec / 60.0, 1),
+        "moving_min": round(moving_sec / 60.0, 1),
+        "stopped_min": round(stopped_sec / 60.0, 1),
+        "avg_kmh": round(avg_kmh, 1),
+        "max_kmh": round(max_kmh, 1),
+        "first_ts": pts[0]["ts"],
+        "last_ts": pts[-1]["ts"],
+        "route": [[p["lat"], p["lng"]] for p in pts],
+    }
+
+
+async def _load_tracks(registration_id: str, day: Optional[str] = None) -> list:
+    """Fetch ordered track points for a registration, optionally restricted to a single UTC day."""
+    q = {"registration_id": registration_id}
+    if day:
+        q["ts"] = {"$gte": f"{day}T00:00:00", "$lt": f"{day}T23:59:59.999999"}
+    cur = db.tracks.find(q, {"_id": 0, "lat": 1, "lng": 1, "ts": 1}).sort("ts", 1)
+    return [p async for p in cur]
+
+
+def _event_day_range(event: dict) -> list:
+    """List of ISO-date strings between event.start_date and event.end_date inclusive."""
+    try:
+        s = date_cls.fromisoformat(event["start_date"])
+        e = date_cls.fromisoformat(event["end_date"])
+    except (KeyError, ValueError):
+        return []
+    if e < s:
+        return []
+    out = []
+    d = s
+    while d <= e:
+        out.append(d.isoformat())
+        d = d + timedelta(days=1)
+    return out
+
+
+@api_router.get("/registrations/{reg_id}/summary")
+async def registration_summary(reg_id: str, user: dict = Depends(get_current_user)):
+    """Per-participant report: total + per-day stats restricted to the event window.
+
+    Accessible by the owning participant and by admins.
+    """
+    reg = await db.registrations.find_one({"id": reg_id}, {"_id": 0})
+    if not reg:
+        raise HTTPException(status_code=404, detail="Registration not found")
+    is_owner = reg["user_id"] == user["id"]
+    is_admin = user.get("role") == "admin"
+    if not (is_owner or is_admin):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    event = await db.events.find_one({"id": reg["event_id"]}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    days = _event_day_range(event)
+
+    all_pts = await _load_tracks(reg_id)
+    total = _stats_from_points(all_pts)
+
+    daily = []
+    for d in days:
+        pts = await _load_tracks(reg_id, d)
+        daily.append({"date": d, **_stats_from_points(pts)})
+
+    return {
+        "registration": {
+            "id": reg["id"],
+            "team_number": reg.get("team_number"),
+            "team_name": reg.get("team_name"),
+            "first_name": reg.get("first_name"),
+            "last_name": reg.get("last_name"),
+        },
+        "event": {
+            "id": event["id"],
+            "name": event.get("name"),
+            "start_date": event.get("start_date"),
+            "end_date": event.get("end_date"),
+        },
+        "total": total,
+        "daily": daily,
+    }
+
+
+@api_router.get("/events/{event_id}/summary")
+async def event_summary(event_id: str, user: dict = Depends(get_current_user)):
+    """Admin-only event-wide leaderboard with total + per-day per-team stats."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    regs = [r async for r in db.registrations.find({"event_id": event_id}, {"_id": 0})]
+    days = _event_day_range(event)
+
+    teams = []
+    for r in regs:
+        rid = r["id"]
+        all_pts = await _load_tracks(rid)
+        total = _stats_from_points(all_pts)
+        daily = []
+        for d in days:
+            pts = await _load_tracks(rid, d)
+            daily.append({"date": d, **_stats_from_points(pts)})
+        teams.append({
+            "registration_id": rid,
+            "team_number": r.get("team_number"),
+            "team_name": r.get("team_name"),
+            "first_name": r.get("first_name"),
+            "last_name": r.get("last_name"),
+            "total": total,
+            "daily": daily,
+        })
+    # Leaderboard sort: most distance first
+    teams.sort(key=lambda t: t["total"]["distance_km"], reverse=True)
+    return {
+        "event": {
+            "id": event["id"],
+            "name": event.get("name"),
+            "start_date": event.get("start_date"),
+            "end_date": event.get("end_date"),
+        },
+        "days": days,
+        "teams": teams,
+    }
+
 
 # ---------- Files ----------
 @api_router.get("/files/{path:path}")

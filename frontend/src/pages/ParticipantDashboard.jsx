@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
+import InstallAppButton from "@/components/InstallAppButton";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
+import { buildParticipantPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +20,7 @@ import {
 import { toast } from "sonner";
 import {
     Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, X, Phone,
-    Calendar, ListChecks, ShieldCheck, Crosshair, Trash2, UserCog,
+    Calendar, ListChecks, ShieldCheck, Crosshair, Trash2, UserCog, FileDown,
 } from "lucide-react";
 
 const LOCATION_INTERVAL_MS = 15_000;
@@ -114,6 +116,34 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
                             </div>
                         )}
                     </div>
+
+                    <div className="border-t border-white/10 pt-4 space-y-2" data-testid="install-app-section">
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">App</p>
+                        <InstallAppButton className="w-full" />
+                        <Button type="button"
+                                onClick={async () => {
+                                    if (!myReg?.id) return;
+                                    const toastId = toast.loading("Building your report…");
+                                    try {
+                                        const { data } = await api.get(`/registrations/${myReg.id}/summary`);
+                                        buildParticipantPdf(data);
+                                        toast.success("Report downloaded", { id: toastId });
+                                    } catch (err) {
+                                        toast.error(formatApiError(err), { id: toastId });
+                                    }
+                                }}
+                                data-testid="download-report-button"
+                                disabled={!myReg?.id}
+                                className="w-full rounded-none bg-white/10 hover:bg-white/20 border border-white/20 uppercase text-xs tracking-[0.2em] h-11">
+                            <FileDown className="w-4 h-4 mr-2" /> Download my report (PDF)
+                        </Button>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed">
+                            Install Convoy on your phone for better background tracking, faster start-up
+                            and one-tap access from your home screen. The PDF report contains your daily
+                            and total distance, duration and average speed for this event.
+                        </p>
+                    </div>
+
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}
                                 className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
@@ -570,6 +600,10 @@ export default function ParticipantDashboard() {
     //      so stationary users still report regularly.
     //   3. When the tab becomes visible again (foregrounded), push immediately.
     //   4. A Wake Lock keeps the screen on so iOS doesn't suspend the JS engine.
+    //   5. On supported Android installs, the service worker fires a
+    //      Periodic Background Sync every minute and posts a BG_PUSH_LOCATION
+    //      message back to this page so we re-emit a fresh fix even if the
+    //      foreground interval has been throttled.
     useEffect(() => {
         if (!myReg) return;
 
@@ -594,11 +628,38 @@ export default function ParticipantDashboard() {
             );
         }
 
-        // Page Visibility — push immediately when user comes back to the app
+        // Page Visibility / Lifecycle — push immediately when user comes back
+        // to the app or the page resumes from a frozen state.
         const onVisibility = () => {
             if (document.visibilityState === "visible") pushLocation(true);
         };
+        const onResume = () => pushLocation(true);
         document.addEventListener("visibilitychange", onVisibility);
+        window.addEventListener("pageshow", onResume);
+        window.addEventListener("resume", onResume);
+
+        // Service worker → page channel for Periodic Background Sync wakeups.
+        const onSwMessage = (event) => {
+            if (event?.data?.type === "BG_PUSH_LOCATION") pushLocation(true);
+        };
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.addEventListener("message", onSwMessage);
+        }
+
+        // Try to register the periodic background sync. Only Android Chrome
+        // installed-as-PWA scenarios will actually schedule it; everywhere
+        // else this fails silently which is fine.
+        (async () => {
+            try {
+                const reg = await navigator.serviceWorker?.ready;
+                if (reg?.periodicSync) {
+                    const status = await navigator.permissions.query({ name: "periodic-background-sync" }).catch(() => null);
+                    if (!status || status.state === "granted") {
+                        await reg.periodicSync.register("convoy-location-ping", { minInterval: 60_000 });
+                    }
+                }
+            } catch (_) { /* unsupported / not allowed — ignore */ }
+        })();
 
         // Wake Lock — keeps the screen on so the OS doesn't pause JS
         let wakeLock = null;
@@ -621,6 +682,11 @@ export default function ParticipantDashboard() {
             }
             document.removeEventListener("visibilitychange", onVisibility);
             document.removeEventListener("visibilitychange", onVisibilityForWake);
+            window.removeEventListener("pageshow", onResume);
+            window.removeEventListener("resume", onResume);
+            if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.removeEventListener("message", onSwMessage);
+            }
             if (wakeLock) { try { wakeLock.release(); } catch (_) {} }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps

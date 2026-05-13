@@ -5,26 +5,36 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import usePwaInstall from "@/lib/usePwaInstall";
 
-/** Pill-shaped "Install App" button used in profile / settings. Hides itself
- *  once the app is already running in standalone (installed) mode. */
+function isIOSUA() {
+    if (typeof navigator === "undefined") return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+/** Pill-shaped "Install App" button used in profile / settings.
+ *  Always visible in browser mode — only hides when running inside the
+ *  already-installed PWA. If the browser hasn't fired `beforeinstallprompt`
+ *  yet (e.g. user dismissed Chrome's banner or visited via in-app browser),
+ *  we still show the button and open a manual instructions modal on tap so
+ *  the user is never stranded. */
 export default function InstallAppButton({ className = "" }) {
     const { canInstall, isStandalone, promptInstall } = usePwaInstall();
     const [iosOpen, setIosOpen] = useState(false);
+    const [genericOpen, setGenericOpen] = useState(false);
 
     if (isStandalone) return null;
 
     const onClick = async () => {
-        const result = await promptInstall();
-        if (result === "ios") {
-            setIosOpen(true);
-        } else if (result === "accepted") {
-            toast.success("Convoy is being installed…");
-        } else if (result === "unsupported") {
-            toast.info("Your browser doesn't support installing this app — try Chrome on Android or Safari on iPhone.");
+        // Try the native prompt first when we have one queued.
+        if (canInstall) {
+            const result = await promptInstall();
+            if (result === "ios") { setIosOpen(true); return; }
+            if (result === "accepted") { toast.success("Convoy is being installed…"); return; }
+            if (result === "dismissed") { toast.info("Installation cancelled — you can try again any time."); return; }
         }
+        // Fall back to manual instructions so the user is never stuck.
+        if (isIOSUA()) setIosOpen(true);
+        else setGenericOpen(true);
     };
-
-    if (!canInstall) return null;
 
     return (
         <>
@@ -59,7 +69,31 @@ export default function InstallAppButton({ className = "" }) {
                         <li>Open Convoy from your home screen for the best tracking experience.</li>
                     </ol>
                     <p className="text-[11px] text-zinc-500 mt-3 leading-relaxed border-t border-white/10 pt-3">
-                        Once installed, the app keeps tracking longer in the background and gets push-style updates.
+                        Note: on iPhone, installing only works in <span className="text-white font-bold">Safari</span>.
+                        If you're using Chrome or another browser, switch to Safari first.
+                    </p>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={genericOpen} onOpenChange={setGenericOpen}>
+                <DialogContent className="bg-[#0A0A0A] border border-[#007AFF]/40 rounded-none text-white max-w-md"
+                               data-testid="generic-install-dialog">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">
+                            Install Convoy
+                        </DialogTitle>
+                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                            Android · Chrome / Edge
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ol className="text-sm text-zinc-200 leading-relaxed space-y-2 list-decimal pl-5">
+                        <li>Tap the <span className="font-bold">⋮ menu</span> button in the top-right of your browser.</li>
+                        <li>Tap <span className="font-bold">"Install app"</span> or <span className="font-bold">"Add to Home screen"</span>.</li>
+                        <li>Confirm — Convoy will appear on your home screen.</li>
+                    </ol>
+                    <p className="text-[11px] text-zinc-500 mt-3 leading-relaxed border-t border-white/10 pt-3">
+                        On iPhone use Safari and tap the <span className="text-white font-bold">Share → Add to Home Screen</span> menu.
+                        Some in-app browsers (Facebook, Instagram, LinkedIn) cannot install web apps — open the link in your regular browser first.
                     </p>
                 </DialogContent>
             </Dialog>

@@ -530,9 +530,9 @@ def _haversine_km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> flo
 def _stats_from_points(points: list) -> dict:
     """Compute distance/duration/speed metrics from a list of track points.
 
-    A point is `{lat, lng, ts}` with `ts` as an ISO-8601 string. Segments
-    with implausible jumps (>2 km in <2 s, i.e. >3600 km/h) are dropped to
-    avoid GPS glitches dominating the result.
+    A point is `{lat, lng, ts}` with `ts` as an ISO-8601 string. Implausible
+    GPS glitches (segments faster than 250 km/h AND shorter than 5 km) are
+    dropped so a single bad fix can't dominate the totals.
     """
     pts = [p for p in points if p.get("lat") is not None and p.get("lng") is not None and p.get("ts")]
     pts.sort(key=lambda p: p["ts"])

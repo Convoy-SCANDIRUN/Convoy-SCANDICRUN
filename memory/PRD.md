@@ -22,9 +22,13 @@ Track participants on a road trip. Admins create events; participants register v
 - Browser geolocation for live tracking
 
 ## Recently shipped (Feb 2026)
-- **PWA auto-update flow** — `sw.js` bumped to v3 with stale-while-revalidate for static assets; `index.js` now auto-reloads exactly once when a new service worker takes control + polls hourly. Installed apps now pick up new code on next launch without a manual reinstall.
-- **Round map markers fix** — Tailwind preflight's `img { height: auto }` was overriding `.marker-pic { width: 48px }`, leaving photos rendered as ovals (e.g. 108×48). Fixed with `!important` on width/height/max-width and explicit `width="48" height="48"` attributes on the marker img.
-- **Circular fallback avatars everywhere** — `lib/avatar.js` generates deterministic colored SVG avatars with team initials. Used in map markers, admin participant list + SOS dispatch dialog, and participants overview. Replaces the generic Unsplash placeholder.
+- **PDF reports** — Backend stores every location ping in a new `tracks` collection; new endpoints `GET /api/registrations/:id/summary` (participant own + admin) and `GET /api/events/:id/summary` (admin) compute daily + total distance (Haversine), duration, moving time, avg/max km·h, route polyline. Frontend renders self-contained PDFs via jsPDF + jspdf-autotable with a canvas-rendered route preview per day. Buttons: profile dialog → "Download my report" / events list → file-down icon per event. 38/38 backend tests pass.
+- **Background location (best-effort PWA)** — Service worker v4 with `periodicsync` + `sync` handlers; page registers `periodicsync` tag every 60s and listens for `BG_PUSH_LOCATION` messages from the SW. Works on Android Chrome installed PWAs; gracefully no-op on iOS Safari (documented honestly).
+- **Install App button in profile** — Reusable `usePwaInstall` hook + `InstallAppButton`. Wired into participant profile dialog and admin topbar. iOS users get a step-by-step "Add to Home Screen" modal.
+- **PWA auto-update flow** — `sw.js` v3 with stale-while-revalidate; `index.js` auto-reloads exactly once when a new SW takes control.
+- **Round map markers fix** — Tailwind preflight was deforming marker imgs to ovals.
+- **Tap-to-focus on map** — Tapping a team in either dashboard sidebar/overview flies the map to that team and opens their popup.
+- **Circular fallback avatars** — `lib/avatar.js` everywhere.
 
 ## What's been implemented (2026-02)
 - JWT auth (register/login/me/logout), admin seed (admin@roadtrip.com / admin123)

@@ -118,8 +118,16 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
                     </div>
 
                     <div className="border-t border-white/10 pt-4 space-y-2" data-testid="install-app-section">
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">App</p>
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Install app</p>
                         <InstallAppButton className="w-full" />
+                        <p className="text-[11px] text-zinc-500 leading-relaxed">
+                            Install Convoy on your phone for better background tracking, faster start-up
+                            and one-tap access from your home screen.
+                        </p>
+                    </div>
+
+                    <div className="border-t border-white/10 pt-4 space-y-2" data-testid="download-report-section">
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Event report</p>
                         <Button type="button"
                                 onClick={async () => {
                                     if (!myReg?.id) return;
@@ -138,9 +146,7 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
                             <FileDown className="w-4 h-4 mr-2" /> Download my report (PDF)
                         </Button>
                         <p className="text-[11px] text-zinc-500 leading-relaxed">
-                            Install Convoy on your phone for better background tracking, faster start-up
-                            and one-tap access from your home screen. The PDF report contains your daily
-                            and total distance, duration and average speed for this event.
+                            PDF with your daily and total distance, duration and average speed for this event.
                         </p>
                     </div>
 

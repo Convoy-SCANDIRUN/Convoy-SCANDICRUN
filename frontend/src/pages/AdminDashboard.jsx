@@ -3,6 +3,7 @@ import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
 import InstallAppButton from "@/components/InstallAppButton";
+import usePush from "@/lib/usePush";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { buildEventPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 function EditEventDialog({ event, onClose, onSaved }) {
@@ -301,6 +302,16 @@ export default function AdminDashboard() {
         } catch (err) { toast.error(formatApiError(err)); }
     };
 
+    const { isSubscribed: pushOn, isSupported: pushSupported, subscribe: pushSub, unsubscribe: pushUnsub } = usePush();
+    const togglePush = async () => {
+        if (!pushSupported) { toast.error("Push not supported by this browser"); return; }
+        if (pushOn) { await pushUnsub(); toast.info("Notifications off"); return; }
+        const r = await pushSub();
+        if (r.ok) toast.success("Notifications enabled");
+        else if (r.reason === "denied") toast.error("Notifications are blocked. Allow them in browser settings.");
+        else toast.error("Couldn't enable notifications");
+    };
+
     return (
         <div className="h-screen w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
             {/* Topbar — safe-top adds env(safe-area-inset-top) padding so iOS PWA status bar doesn't overlap */}
@@ -322,6 +333,16 @@ export default function AdminDashboard() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button onClick={togglePush}
+                            type="button"
+                            title={pushOn ? "Notifications on — click to turn off" : "Enable push notifications"}
+                            data-testid="admin-notifications-toggle"
+                            className={`w-9 h-9 flex items-center justify-center border transition ${
+                                pushOn ? "border-[#34C759]/50 bg-[#34C759]/10 text-[#34C759]" :
+                                "border-white/15 hover:bg-white/5 text-zinc-300"
+                            }`}>
+                        {pushOn ? <BellRing className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                    </button>
                     <InstallAppButton className="hidden sm:inline-flex" />
                     <Button onClick={logout} variant="ghost" data-testid="logout-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">

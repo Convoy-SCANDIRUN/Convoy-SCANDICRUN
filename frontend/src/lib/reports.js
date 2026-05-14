@@ -28,8 +28,151 @@ function fmtTime(iso) {
     catch { return "—"; }
 }
 
-/** Render a list of [lat, lng] points to a PNG data URL using a plain canvas.
- *  No external map service needed — keeps the report self-contained. */
+/* ---------- Static map tile composition ----------
+ * Fetches OpenStreetMap raster tiles (CartoDB Voyager — same style as the
+ * live map) for the bounding box of a route and composites them onto a
+ * canvas, with the route polyline drawn on top.
+ *
+ * Tile usage is friendly: max 3×3 = 9 tiles per day, fetched lazily during
+ * PDF export. CartoDB doesn't require an API key for this volume.
+ */
+const TILE_URL = (z, x, y) =>
+    `https://a.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`;
+const TILE_SIZE = 256;
+
+function lonToTileX(lon, z) { return ((lon + 180) / 360) * Math.pow(2, z); }
+function latToTileY(lat, z) {
+    const rad = (lat * Math.PI) / 180;
+    return ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * Math.pow(2, z);
+}
+
+function pickZoom(bounds, targetTiles = 3) {
+    // Largest zoom that fits the bounding box inside `targetTiles × targetTiles`
+    for (let z = 14; z >= 2; z--) {
+        const xMin = Math.floor(lonToTileX(bounds.lngMin, z));
+        const xMax = Math.floor(lonToTileX(bounds.lngMax, z));
+        const yMin = Math.floor(latToTileY(bounds.latMax, z));
+        const yMax = Math.floor(latToTileY(bounds.latMin, z));
+        if ((xMax - xMin + 1) <= targetTiles && (yMax - yMin + 1) <= targetTiles) return z;
+    }
+    return 2;
+}
+
+function loadImage(url) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+    });
+}
+
+async function routeOnRealMapPng(route, width = 1200, height = 600) {
+    if (!route || route.length < 2) return null;
+    const lats = route.map((p) => p[0]);
+    const lngs = route.map((p) => p[1]);
+    const bounds = {
+        latMin: Math.min(...lats), latMax: Math.max(...lats),
+        lngMin: Math.min(...lngs), lngMax: Math.max(...lngs),
+    };
+    // Avoid degenerate bounds (single-point sticky tracks) — pad a tiny window
+    if (bounds.latMin === bounds.latMax) { bounds.latMin -= 0.001; bounds.latMax += 0.001; }
+    if (bounds.lngMin === bounds.lngMax) { bounds.lngMin -= 0.001; bounds.lngMax += 0.001; }
+
+    const z = pickZoom(bounds);
+    const fx = (lng) => lonToTileX(lng, z);
+    const fy = (lat) => latToTileY(lat, z);
+    const xMin = Math.floor(fx(bounds.lngMin));
+    const xMax = Math.floor(fx(bounds.lngMax));
+    const yMin = Math.floor(fy(bounds.latMax));
+    const yMax = Math.floor(fy(bounds.latMin));
+    const cols = xMax - xMin + 1;
+    const rows = yMax - yMin + 1;
+
+    // Compose tiles onto an off-screen canvas at native tile resolution
+    const tileCanvas = document.createElement("canvas");
+    tileCanvas.width = cols * TILE_SIZE;
+    tileCanvas.height = rows * TILE_SIZE;
+    const tctx = tileCanvas.getContext("2d");
+    // Light background for any tiles that fail to load
+    tctx.fillStyle = "#F3F6FB";
+    tctx.fillRect(0, 0, tileCanvas.width, tileCanvas.height);
+
+    const tileTasks = [];
+    for (let x = xMin; x <= xMax; x++) {
+        for (let y = yMin; y <= yMax; y++) {
+            tileTasks.push(
+                loadImage(TILE_URL(z, x, y)).then((img) => {
+                    if (img) tctx.drawImage(img, (x - xMin) * TILE_SIZE, (y - yMin) * TILE_SIZE);
+                })
+            );
+        }
+    }
+    await Promise.all(tileTasks);
+
+    // Pixel coordinates inside the composed tile canvas
+    const project = ([lat, lng]) => [
+        (fx(lng) - xMin) * TILE_SIZE,
+        (fy(lat) - yMin) * TILE_SIZE,
+    ];
+
+    // Draw the route polyline + start/end markers
+    tctx.strokeStyle = "#007AFF";
+    tctx.lineWidth = 5;
+    tctx.lineJoin = "round";
+    tctx.lineCap = "round";
+    tctx.shadowColor = "rgba(0,0,0,0.4)";
+    tctx.shadowBlur = 4;
+    tctx.beginPath();
+    route.forEach((pt, i) => {
+        const [x, y] = project(pt);
+        if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+    });
+    tctx.stroke();
+    tctx.shadowBlur = 0;
+
+    const [sx0, sy0] = project(route[0]);
+    const [ex, ey] = project(route[route.length - 1]);
+    tctx.fillStyle = "#34C759"; tctx.beginPath(); tctx.arc(sx0, sy0, 9, 0, Math.PI * 2); tctx.fill();
+    tctx.fillStyle = "#FF3B30"; tctx.beginPath(); tctx.arc(ex, ey, 9, 0, Math.PI * 2); tctx.fill();
+    tctx.fillStyle = "#fff";
+    tctx.font = "bold 12px sans-serif"; tctx.textAlign = "center"; tctx.textBaseline = "middle";
+    tctx.fillText("S", sx0, sy0);
+    tctx.fillText("E", ex, ey);
+
+    // Crop to the actual route bounding box (with a 24px margin) so the PDF
+    // doesn't waste space on empty surrounding tiles.
+    const margin = 24;
+    const xs = route.map(project).map((p) => p[0]);
+    const ys = route.map(project).map((p) => p[1]);
+    let cropX = Math.max(0, Math.min(...xs) - margin);
+    let cropY = Math.max(0, Math.min(...ys) - margin);
+    let cropW = Math.min(tileCanvas.width - cropX, Math.max(...xs) - Math.min(...xs) + margin * 2);
+    let cropH = Math.min(tileCanvas.height - cropY, Math.max(...ys) - Math.min(...ys) + margin * 2);
+    if (cropW < 50) cropW = tileCanvas.width;
+    if (cropH < 50) cropH = tileCanvas.height;
+
+    // Re-render at the requested PDF dimensions
+    const out = document.createElement("canvas");
+    out.width = width;
+    out.height = height;
+    const octx = out.getContext("2d");
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = "high";
+    // Letterbox-fit the cropped region so we don't squash the aspect ratio
+    const ratioSrc = cropW / cropH;
+    const ratioDst = width / height;
+    let dw, dh, dx, dy;
+    if (ratioSrc > ratioDst) { dw = width; dh = width / ratioSrc; dx = 0; dy = (height - dh) / 2; }
+    else { dh = height; dw = height * ratioSrc; dx = (width - dw) / 2; dy = 0; }
+    octx.fillStyle = "#F3F6FB";
+    octx.fillRect(0, 0, width, height);
+    octx.drawImage(tileCanvas, cropX, cropY, cropW, cropH, dx, dy, dw, dh);
+    return out.toDataURL("image/png");
+}
+
+/* ---------- Simple polyline fallback (no network) ---------- */
 function routePreviewPng(route, width = 720, height = 360) {
     if (!route || route.length < 2) return null;
     const canvas = document.createElement("canvas");
@@ -125,7 +268,7 @@ function footer(doc) {
 }
 
 /* ---------- Participant summary PDF ---------- */
-export function buildParticipantPdf(summary) {
+export async function buildParticipantPdf(summary) {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const W = doc.internal.pageSize.getWidth();
     const { registration: r, event, total, daily } = summary;
@@ -185,12 +328,17 @@ export function buildParticipantPdf(summary) {
         styles: { fontSize: 9 },
     });
 
-    // One page per day with a route preview, only if there were points
-    daily.forEach((d) => {
-        if (!d.route || d.route.length < 2) return;
+    // One page per day with a route preview, only if there were points.
+    // Try to render the route on real OSM tiles first; fall back to the
+    // simple polyline preview if the tile fetches fail (offline).
+    for (const d of daily) {
+        if (!d.route || d.route.length < 2) continue;
         doc.addPage();
         header(doc, `Day ${d.date}`, `${r.team_name} · T${r.team_number}`);
-        const png = routePreviewPng(d.route, 1200, 600);
+        let png = null;
+        try { png = await routeOnRealMapPng(d.route, 1200, 600); }
+        catch (_) { /* fall through */ }
+        if (!png) png = routePreviewPng(d.route, 1200, 600);
         if (png) doc.addImage(png, "PNG", 14, 26, W - 28, (W - 28) / 2);
         let y2 = 26 + (W - 28) / 2 + 6;
         autoTable(doc, {
@@ -204,7 +352,7 @@ export function buildParticipantPdf(summary) {
             headStyles: { fillColor: C_PRIMARY, textColor: "#fff", fontStyle: "bold" },
             styles: { fontSize: 9 },
         });
-    });
+    }
 
     footer(doc);
     const slug = `${event.name}-T${r.team_number}-${r.team_name}`.replace(/[^\w-]+/g, "_");

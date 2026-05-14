@@ -11,7 +11,7 @@
  * Bump CACHE_VERSION whenever the caching strategy itself changes; old
  * caches are pruned in the activate handler.
  */
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const CACHE = `convoy-shell-${CACHE_VERSION}`;
 const SHELL = ["/", "/index.html", "/icon.svg", "/manifest.json"];
 
@@ -84,3 +84,42 @@ self.addEventListener("sync", (event) => {
         }
     })());
 });
+
+/* ---- Web Push: show notifications even when the app is closed ---- */
+self.addEventListener("push", (event) => {
+    let data = { title: "Convoy", body: "New activity" };
+    if (event.data) {
+        try { data = event.data.json(); }
+        catch (_) { data = { title: "Convoy", body: event.data.text() }; }
+    }
+    const isSos = data?.data?.type === "sos";
+    const isHelp = data?.data?.type === "help";
+    const options = {
+        body: data.body || "",
+        icon: "/icon.svg",
+        badge: "/icon.svg",
+        tag: data.data?.registration_id ? `convoy-${data.data.type}-${data.data.registration_id}` : "convoy",
+        renotify: true,
+        requireInteraction: isSos || isHelp,
+        vibrate: isSos ? [300, 100, 300, 100, 300] : [200, 100, 200],
+        data: data.data || {},
+    };
+    event.waitUntil(self.registration.showNotification(data.title || "Convoy", options));
+});
+
+/* ---- Notification click: focus or open the app and notify the page ---- */
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const target = (event.notification.data && event.notification.data.click_url) || "/";
+    event.waitUntil((async () => {
+        const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        for (const c of allClients) {
+            if ("focus" in c) {
+                c.postMessage({ type: "NOTIFICATION_CLICK", data: event.notification.data || {} });
+                return c.focus();
+            }
+        }
+        if (self.clients.openWindow) return self.clients.openWindow(target);
+    })());
+});
+

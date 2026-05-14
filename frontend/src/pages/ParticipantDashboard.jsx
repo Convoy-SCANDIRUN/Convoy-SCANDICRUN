@@ -3,6 +3,7 @@ import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
 import InstallAppButton from "@/components/InstallAppButton";
+import NotificationsToggle from "@/components/NotificationsToggle";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { buildParticipantPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,11 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
                         </p>
                     </div>
 
+                    <div className="border-t border-white/10 pt-4 space-y-2" data-testid="notifications-section">
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Push notifications</p>
+                        <NotificationsToggle />
+                    </div>
+
                     <div className="border-t border-white/10 pt-4 space-y-2" data-testid="download-report-section">
                         <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Event report</p>
                         <Button type="button"
@@ -134,7 +140,7 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
                                     const toastId = toast.loading("Building your report…");
                                     try {
                                         const { data } = await api.get(`/registrations/${myReg.id}/summary`);
-                                        buildParticipantPdf(data);
+                                        await buildParticipantPdf(data);
                                         toast.success("Report downloaded", { id: toastId });
                                     } catch (err) {
                                         toast.error(formatApiError(err), { id: toastId });
@@ -472,6 +478,20 @@ export default function ParticipantDashboard() {
     const [showParticipantsList, setShowParticipantsList] = useState(false);
     const [editProfileOpen, setEditProfileOpen] = useState(false);
     const [focusTarget, setFocusTarget] = useState(null);
+    const [helpNav, setHelpNav] = useState(null); // { reg } — opens nav dialog for a help-requesting team
+
+    /** Great-circle distance in km between two lat/lng pairs. Used for the
+     *  "approx" ETA shown when tapping a help notification — straight-line
+     *  not driving distance, so we label the number honestly in the UI. */
+    const haversineKm = (a, b) => {
+        if (!a || !b) return null;
+        const toRad = (d) => (d * Math.PI) / 180;
+        const R = 6371.0088;
+        const d1 = toRad(b.lat - a.lat);
+        const d2 = toRad(b.lng - a.lng);
+        const h = Math.sin(d1 / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(d2 / 2) ** 2;
+        return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    };
 
     const focusOnTeam = (r) => {
         if (r.lat == null || r.lng == null) {
@@ -480,6 +500,17 @@ export default function ParticipantDashboard() {
         }
         setFocusTarget({ id: r.id, lat: r.lat, lng: r.lng, nonce: Date.now() });
         setShowParticipantsList(false);
+    };
+
+    /** Tap on a help notification — focus map AND show a navigation dialog
+     *  with approx ETA from the user's own last known position. */
+    const openHelpNav = (r) => {
+        if (r.lat == null || r.lng == null) {
+            toast.info(`${r.team_name} hasn't shared a location yet`);
+            return;
+        }
+        setFocusTarget({ id: r.id, lat: r.lat, lng: r.lng, nonce: Date.now() });
+        setHelpNav({ reg: r });
     };
 
     const loadEvents = async () => {
@@ -930,20 +961,29 @@ export default function ParticipantDashboard() {
                 </div>
             )}
 
-            {/* Active help-requests panel — visible to all participants */}
+            {/* Active help-requests panel — visible to all participants. Each
+                row is a button that focuses the map on the team in distress AND
+                opens a navigation dialog with approximate distance + drive
+                time. */}
             {activeHelp.length > 0 && (
                 <div className="absolute top-[80px] left-1/2 -translate-x-1/2 z-[1102] glass border-l-4 border-[#FFCC00] px-4 py-3 max-w-[90vw] sm:max-w-md"
                      data-testid="active-help-panel">
                     <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-[#FFCC00] mb-2 flex items-center gap-2">
                         <AlertTriangle className="w-3 h-3" /> Active help requests ({activeHelp.length})
                     </p>
-                    <ul className="space-y-2 max-h-32 overflow-y-auto">
+                    <ul className="space-y-1 max-h-32 overflow-y-auto">
                         {activeHelp.map((r) => (
-                            <li key={r.id} className="text-xs" data-testid={`active-help-item-${r.id}`}>
-                                <span className="font-bold">T{r.team_number} · {r.team_name}</span>
-                                {r.help_message && (
-                                    <span className="text-zinc-300 italic"> — {r.help_message}</span>
-                                )}
+                            <li key={r.id} data-testid={`active-help-item-${r.id}`}>
+                                <button type="button"
+                                        onClick={() => openHelpNav(r)}
+                                        data-testid={`help-notification-${r.id}`}
+                                        className="w-full text-left text-xs px-2 py-1.5 -mx-2 hover:bg-[#FFCC00]/10 transition cursor-pointer">
+                                    <span className="font-bold">T{r.team_number} · {r.team_name}</span>
+                                    {r.help_message && (
+                                        <span className="text-zinc-300 italic"> — {r.help_message}</span>
+                                    )}
+                                    <span className="ml-2 text-[10px] uppercase tracking-wider text-[#FFCC00]">Tap to navigate ›</span>
+                                </button>
                             </li>
                         ))}
                     </ul>
@@ -1066,6 +1106,83 @@ export default function ParticipantDashboard() {
                             </Button>
                         )}
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Help-request navigation dialog — appears when a participant taps
+                an active help notification. Shows the team in trouble plus
+                approximate straight-line distance + drive time from the user's
+                last known position, with one-tap navigation links. */}
+            <Dialog open={!!helpNav} onOpenChange={(o) => !o && setHelpNav(null)}>
+                <DialogContent className="bg-[#0A0A0A] border border-[#FFCC00]/50 rounded-none text-white max-w-md"
+                               data-testid="help-nav-dialog">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight text-[#FFCC00] flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5" /> Help · Navigate
+                        </DialogTitle>
+                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                            Team requesting assistance
+                        </DialogDescription>
+                    </DialogHeader>
+                    {helpNav?.reg && (() => {
+                        const r = helpNav.reg;
+                        const me = myReg && myReg.lat != null && myReg.lng != null ? { lat: myReg.lat, lng: myReg.lng } : null;
+                        const km = me ? haversineKm(me, { lat: r.lat, lng: r.lng }) : null;
+                        // Rough drive-time estimate at 60 km/h. Labelled as
+                        // "approx" in the UI since this is a straight-line
+                        // distance, not real routing.
+                        const minutes = km != null ? Math.max(1, Math.round((km / 60) * 60)) : null;
+                        const fmtMin = (m) => {
+                            if (m == null) return "—";
+                            if (m >= 60) return `${Math.floor(m / 60)} h ${m % 60} min`;
+                            return `${m} min`;
+                        };
+                        const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
+                        const amaps = `https://maps.apple.com/?daddr=${r.lat},${r.lng}`;
+                        return (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3 border border-[#FFCC00]/40 bg-[#FFCC00]/10 p-3" data-testid="help-nav-team">
+                                    <img src={avatarUrl(r)} alt=""
+                                         className="w-14 h-14 rounded-full object-cover border-2 border-[#FFCC00]"
+                                         onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }} />
+                                    <div className="min-w-0">
+                                        <p className="font-display text-xl font-black uppercase">T{r.team_number} · {r.team_name}</p>
+                                        <p className="text-xs text-zinc-300">{r.first_name} {r.last_name}</p>
+                                    </div>
+                                </div>
+                                {r.help_message && (
+                                    <div className="border-l-2 border-[#FFCC00] pl-3" data-testid="help-nav-message">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-zinc-400 mb-1">Team note</p>
+                                        <p className="text-sm text-zinc-200 italic">“{r.help_message}”</p>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-2" data-testid="help-nav-eta">
+                                    <div className="border border-white/15 p-3">
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">Distance (approx)</p>
+                                        <p className="font-display text-2xl font-black">{km != null ? `${km.toFixed(1)} km` : "—"}</p>
+                                    </div>
+                                    <div className="border border-white/15 p-3">
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">Drive time (approx)</p>
+                                        <p className="font-display text-2xl font-black">{fmtMin(minutes)}</p>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                                    Distance is straight-line, drive time assumes 60 km/h on average. Use the navigation
+                                    links below for a proper routed estimate.
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <a href={gmaps} target="_blank" rel="noreferrer" data-testid="help-nav-google"
+                                       className="text-center py-3 bg-[#007AFF] hover:bg-[#005bb5] text-white text-[11px] uppercase tracking-[0.2em] font-bold transition">
+                                        Google Maps
+                                    </a>
+                                    <a href={amaps} target="_blank" rel="noreferrer" data-testid="help-nav-apple"
+                                       className="text-center py-3 border border-white/20 hover:bg-white/5 text-white text-[11px] uppercase tracking-[0.2em] font-bold transition">
+                                        Apple Maps
+                                    </a>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
 

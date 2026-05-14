@@ -12,6 +12,9 @@ import string
 import requests
 import bcrypt
 import jwt as pyjwt
+import asyncio
+import json as _json
+from pywebpush import webpush, WebPushException
 from datetime import datetime, timezone, timedelta, date as date_cls
 from math import radians, sin, cos, atan2, sqrt
 from typing import Optional, List
@@ -512,7 +515,144 @@ async def update_help(reg_id: str, body: HelpIn, user: dict = Depends(get_curren
         "last_update": datetime.now(timezone.utc).isoformat(),
     }
     await db.registrations.update_one({"id": reg_id}, {"$set": update})
+    # Fan-out push notifications when a team enters distress so other users
+    # are alerted even when the app is in the background or fully closed.
+    if new_status in ("help", "sos"):
+        asyncio.create_task(_dispatch_help_push(reg, new_status))
     return {"ok": True, "status": new_status}
+
+
+# ---------- Web Push notifications ----------
+# pywebpush 2.x interprets `vapid_private_key` either as a path to a PEM file
+# on disk, raw DER bytes, OR a py_vapid.Vapid instance — passing the PEM string
+# directly raises ASN.1 parsing errors. Materialise the env-provided PEM to a
+# tempfile once at import time and reuse the path for every push.
+import tempfile as _tempfile
+_VAPID_PEM_STR = os.environ.get("VAPID_PRIVATE_KEY", "").replace("\\n", "\n")
+VAPID_PRIVATE_KEY = ""  # path on disk; falsy when no key configured
+if _VAPID_PEM_STR.strip().startswith("-----BEGIN"):
+    _f = _tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
+    _f.write(_VAPID_PEM_STR)
+    _f.close()
+    VAPID_PRIVATE_KEY = _f.name
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.com")
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str
+    keys: dict
+
+
+@api_router.get("/push/public-key")
+async def push_public_key():
+    """Return the VAPID public key the browser uses when subscribing."""
+    return {"publicKey": VAPID_PUBLIC_KEY}
+
+
+@api_router.post("/push/subscribe")
+async def push_subscribe(body: PushSubscriptionIn, user: dict = Depends(get_current_user)):
+    """Store / upsert a push subscription for the current user. The endpoint
+    URL is the natural unique key — same device subscribing again just
+    refreshes the document."""
+    doc = {
+        "user_id": user["id"],
+        "endpoint": body.endpoint,
+        "keys": body.keys or {},
+        "role": user.get("role", "participant"),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.push_subscriptions.update_one(
+        {"endpoint": body.endpoint},
+        {"$set": doc, "$setOnInsert": {"created_at": doc["updated_at"]}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.post("/push/unsubscribe")
+async def push_unsubscribe(body: PushSubscriptionIn, user: dict = Depends(get_current_user)):
+    await db.push_subscriptions.delete_one({"endpoint": body.endpoint, "user_id": user["id"]})
+    return {"ok": True}
+
+
+async def _send_push(sub: dict, payload: dict) -> bool:
+    """Send a single push. Returns True on success. Permanently invalid
+    endpoints (HTTP 404/410) are deleted from the collection so we don't
+    keep retrying them. Runs in a thread because pywebpush is sync."""
+    if not VAPID_PRIVATE_KEY:
+        return False
+    try:
+        await asyncio.to_thread(
+            webpush,
+            subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
+            data=_json.dumps(payload),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_CLAIM_EMAIL},
+            timeout=15,
+        )
+        return True
+    except WebPushException as e:
+        status = getattr(e.response, "status_code", None) if e.response is not None else None
+        if status in (404, 410):
+            await db.push_subscriptions.delete_one({"endpoint": sub["endpoint"]})
+        else:
+            logger.warning(f"Push failed for {sub['endpoint'][:60]}…: {e}")
+        return False
+    except Exception as e:
+        logger.warning(f"Push error: {e}")
+        return False
+
+
+async def _dispatch_help_push(reg: dict, status: str):
+    """Fire push notifications when a team flags help or SOS.
+       - help → every participant of the event (excluding the requester)
+       - sos  → admins only (per product spec)
+    """
+    event_id = reg.get("event_id")
+    if not event_id:
+        return
+    event = await db.events.find_one({"id": event_id}, {"_id": 0, "name": 1})
+    if not event:
+        return
+    team_label = f"T{reg.get('team_number')} · {reg.get('team_name')}"
+    if status == "sos":
+        title = f"SOS — {team_label}"
+        body = f"{event.get('name','Event')}: emergency assistance requested"
+        # Admins only (any admin in the system — they manage events centrally)
+        target_users = [u async for u in db.users.find({"role": "admin"}, {"_id": 0, "id": 1})]
+    else:
+        title = f"Help requested — {team_label}"
+        msg = reg.get("help_message") or "Team needs assistance"
+        body = f"{event.get('name','Event')}: {msg[:120]}"
+        # All participants of this event, except the requester
+        regs = [r async for r in db.registrations.find(
+            {"event_id": event_id}, {"_id": 0, "user_id": 1}
+        )]
+        ids = {r["user_id"] for r in regs if r["user_id"] != reg["user_id"]}
+        # Plus admins (they should see help requests too)
+        admins = [u async for u in db.users.find({"role": "admin"}, {"_id": 0, "id": 1})]
+        ids.update({a["id"] for a in admins})
+        target_users = [{"id": uid} for uid in ids]
+
+    user_ids = [u["id"] for u in target_users]
+    if not user_ids:
+        return
+    subs = [s async for s in db.push_subscriptions.find(
+        {"user_id": {"$in": user_ids}}, {"_id": 0, "endpoint": 1, "keys": 1}
+    )]
+    payload = {
+        "title": title,
+        "body": body,
+        "click_url": "/",
+        "data": {
+            "type": status,
+            "registration_id": reg.get("id"),
+            "event_id": event_id,
+        },
+    }
+    await asyncio.gather(*[_send_push(s, payload) for s in subs], return_exceptions=True)
+
 
 # ---------- Summaries / reports ----------
 
@@ -553,7 +693,8 @@ def _stats_from_points(points: list) -> dict:
     distance_km = 0.0
     moving_sec = 0.0
     stopped_sec = 0.0
-    max_kmh = 0.0
+    # Per-leg metadata used by the 5-point sliding-window max-speed pass below
+    legs = []
     for a, b in zip(pts, pts[1:]):
         try:
             ta = datetime.fromisoformat(a["ts"].replace("Z", "+00:00"))
@@ -573,8 +714,27 @@ def _stats_from_points(points: list) -> dict:
             stopped_sec += dt_sec
         else:
             moving_sec += dt_sec
-            if kmh > max_kmh:
-                max_kmh = kmh
+        legs.append({"km": leg_km, "sec": dt_sec})
+
+    # 5-point sliding-window max speed — averages over 4 consecutive legs
+    # (i.e. ~60 s of motion at the default 15 s cadence), so a single jittery
+    # GPS fix can't spike the reported maximum.
+    max_kmh = 0.0
+    window = 4
+    if len(legs) >= window:
+        for i in range(len(legs) - window + 1):
+            chunk = legs[i:i + window]
+            tot_km = sum(c["km"] for c in chunk)
+            tot_sec = sum(c["sec"] for c in chunk)
+            if tot_sec > 0:
+                w_kmh = tot_km / (tot_sec / 3600.0)
+                if w_kmh > max_kmh:
+                    max_kmh = w_kmh
+    elif legs:
+        tot_km = sum(c["km"] for c in legs)
+        tot_sec = sum(c["sec"] for c in legs)
+        if tot_sec > 0:
+            max_kmh = tot_km / (tot_sec / 3600.0)
 
     duration_sec = (
         datetime.fromisoformat(pts[-1]["ts"].replace("Z", "+00:00"))

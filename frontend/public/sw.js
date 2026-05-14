@@ -11,9 +11,9 @@
  * Bump CACHE_VERSION whenever the caching strategy itself changes; old
  * caches are pruned in the activate handler.
  */
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v6";
 const CACHE = `convoy-shell-${CACHE_VERSION}`;
-const SHELL = ["/", "/index.html", "/icon.svg", "/manifest.json"];
+const SHELL = ["/", "/index.html", "/scandic-logo.png", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
     event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => null));
@@ -96,8 +96,8 @@ self.addEventListener("push", (event) => {
     const isHelp = data?.data?.type === "help";
     const options = {
         body: data.body || "",
-        icon: "/icon.svg",
-        badge: "/icon.svg",
+        icon: "/scandic-logo.png",
+        badge: "/scandic-logo.png",
         tag: data.data?.registration_id ? `convoy-${data.data.type}-${data.data.registration_id}` : "convoy",
         renotify: true,
         requireInteraction: isSos || isHelp,

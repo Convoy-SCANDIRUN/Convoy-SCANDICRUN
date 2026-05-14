@@ -3,6 +3,7 @@ import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
 import InstallAppButton from "@/components/InstallAppButton";
+import BrandLogo from "@/components/BrandLogo";
 import usePush from "@/lib/usePush";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { buildEventPdf } from "@/lib/reports";
@@ -323,7 +324,7 @@ export default function AdminDashboard() {
                              data-testid="topbar-event-image"
                              onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
-                        <Compass className="w-6 h-6 text-[#007AFF]" />
+                        <BrandLogo className="w-10 h-10" />
                     )}
                     <div className="min-w-0">
                         <p className="font-display text-xl font-black uppercase leading-none truncate">

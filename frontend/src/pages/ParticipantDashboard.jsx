@@ -23,6 +23,7 @@ import {
     Compass, LogOut, Plus, Users, AlertTriangle, AlertOctagon, X, Phone,
     Calendar, ListChecks, ShieldCheck, Crosshair, Trash2, UserCog, FileDown,
 } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 const LOCATION_INTERVAL_MS = 15_000;
 
@@ -338,7 +339,7 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
                     </button>
                 )}
                 <div className="flex items-center gap-3 mb-6">
-                    <Compass className="w-7 h-7 text-[#007AFF]" />
+                    <BrandLogo className="w-9 h-9" />
                     <div>
                         <p className="font-display text-3xl font-black uppercase leading-none">Join Event</p>
                         <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mt-1">Enter your event code</p>
@@ -835,7 +836,7 @@ export default function ParticipantDashboard() {
                              data-testid="topbar-event-image"
                              onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
-                        <Compass className="w-5 h-5 sm:w-6 sm:h-6 text-[#007AFF] flex-shrink-0" />
+                        <BrandLogo className="w-8 h-8 sm:w-10 sm:h-10" />
                     )}
                     <div className="min-w-0">
                         <p className="font-display text-sm sm:text-xl font-black uppercase leading-none truncate">

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Compass } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function Register() {
     const { register } = useAuth();
@@ -48,7 +48,7 @@ export default function Register() {
 
             <div className="relative z-10 w-full max-w-md p-8 glass">
                 <div className="flex items-center gap-3 mb-8">
-                    <Compass className="w-8 h-8 text-[#007AFF]" />
+                    <BrandLogo className="w-12 h-12" />
                     <div>
                         <p className="font-display text-3xl font-black uppercase leading-none">Create Account</p>
                         <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mt-1">

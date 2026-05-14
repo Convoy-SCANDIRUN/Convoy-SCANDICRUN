@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Compass } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function Login() {
     const { login } = useAuth();
@@ -42,7 +42,7 @@ export default function Login() {
 
             <div className="relative z-10 w-full max-w-md p-8 glass">
                 <div className="flex items-center gap-3 mb-8">
-                    <Compass className="w-8 h-8 text-[#007AFF]" />
+                    <BrandLogo className="w-12 h-12" />
                     <div>
                         <p className="font-display text-3xl font-black tracking-tight uppercase leading-none">
                             Convoy

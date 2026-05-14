@@ -1,12 +1,12 @@
 {
-  "short_name": "Convoy",
-  "name": "Convoy — Tactical Tracker",
+  "short_name": "Scandic Run",
+  "name": "Scandic Run — Live Tracker",
   "description": "Live road-trip participant tracker with help & SOS broadcasts.",
   "icons": [
     {
-      "src": "/icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
+      "src": "/scandic-logo.png",
+      "type": "image/png",
+      "sizes": "192x192 512x512",
       "purpose": "any maskable"
     }
   ],

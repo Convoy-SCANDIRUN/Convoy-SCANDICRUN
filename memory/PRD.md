@@ -22,13 +22,14 @@ Track participants on a road trip. Admins create events; participants register v
 - Browser geolocation for live tracking
 
 ## Recently shipped (Feb 2026)
-- **PDF reports** — Backend stores every location ping in a new `tracks` collection; new endpoints `GET /api/registrations/:id/summary` (participant own + admin) and `GET /api/events/:id/summary` (admin) compute daily + total distance (Haversine), duration, moving time, avg/max km·h, route polyline. Frontend renders self-contained PDFs via jsPDF + jspdf-autotable with a canvas-rendered route preview per day. Buttons: profile dialog → "Download my report" / events list → file-down icon per event. 38/38 backend tests pass.
-- **Background location (best-effort PWA)** — Service worker v4 with `periodicsync` + `sync` handlers; page registers `periodicsync` tag every 60s and listens for `BG_PUSH_LOCATION` messages from the SW. Works on Android Chrome installed PWAs; gracefully no-op on iOS Safari (documented honestly).
-- **Install App button in profile** — Reusable `usePwaInstall` hook + `InstallAppButton`. Wired into participant profile dialog and admin topbar. iOS users get a step-by-step "Add to Home Screen" modal.
-- **PWA auto-update flow** — `sw.js` v3 with stale-while-revalidate; `index.js` auto-reloads exactly once when a new SW takes control.
-- **Round map markers fix** — Tailwind preflight was deforming marker imgs to ovals.
-- **Tap-to-focus on map** — Tapping a team in either dashboard sidebar/overview flies the map to that team and opens their popup.
-- **Circular fallback avatars** — `lib/avatar.js` everywhere.
+- **Web Push notifications** — VAPID-based push for installed PWAs. Backend (FastAPI + pywebpush) endpoints `/api/push/{public-key,subscribe,unsubscribe}`; help fan-out to all event participants + admins, SOS fan-out to admins only. Dead endpoints (HTTP 404/410) auto-pruned. Service worker v5 handles `push` + `notificationclick`. iOS only works in installed PWAs (16.4+) — documented honestly. **48/48 backend tests pass** (iteration_4.json).
+- **Tap-to-navigate help notifications** — Each row in the "Active help requests" panel is now a button; tapping flies the map to that team AND opens a navigation dialog with approximate distance (Haversine) and drive-time estimate (60 km/h heuristic, labelled "approx") plus Google/Apple Maps deep links.
+- **Real OSM map in PDFs** — Daily route pages in the participant PDF now render the polyline on real CartoDB Voyager tiles (same style as the live map) with letterbox-fit cropping and start/end markers; falls back to the blueprint preview if tile fetches fail.
+- **5-point sliding max speed** — `_stats_from_points` now computes max km·h over a 4-leg sliding window (~60 s of motion) instead of a single leg, dropping GPS-glitch spikes to realistic values.
+- **PDF reports** — `tracks` collection captures every location ping; `/api/registrations/:id/summary` and `/api/events/:id/summary` compute Haversine distance, duration, moving time, avg + max km·h.
+- **Background location (best-effort PWA)** — SW v4 with `periodicsync` + `sync` handlers; page registers a 60s background sync.
+- **Install App button in profile** — Always visible in browser, hides only when standalone. Permanent fallback instructions for iOS Safari and Android Chrome.
+- **PWA auto-update flow** — `index.js` auto-reloads exactly once when a new SW takes control.
 
 ## What's been implemented (2026-02)
 - JWT auth (register/login/me/logout), admin seed (admin@roadtrip.com / admin123)

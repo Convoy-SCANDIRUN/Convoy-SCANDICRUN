@@ -517,8 +517,12 @@ async def update_help(reg_id: str, body: HelpIn, user: dict = Depends(get_curren
     await db.registrations.update_one({"id": reg_id}, {"$set": update})
     # Fan-out push notifications when a team enters distress so other users
     # are alerted even when the app is in the background or fully closed.
+    # Tasks are kept in `_BG_TASKS` so the event loop doesn't garbage-collect
+    # them while still running.
     if new_status in ("help", "sos"):
-        asyncio.create_task(_dispatch_help_push(reg, new_status))
+        t = asyncio.create_task(_dispatch_help_push(reg, new_status))
+        _BG_TASKS.add(t)
+        t.add_done_callback(_BG_TASKS.discard)
     return {"ok": True, "status": new_status}
 
 
@@ -537,6 +541,9 @@ if _VAPID_PEM_STR.strip().startswith("-----BEGIN"):
     VAPID_PRIVATE_KEY = _f.name
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.com")
+# Strong-reference set for fire-and-forget asyncio tasks (push fan-out) so
+# they aren't GC'd while still running. Callbacks remove them on completion.
+_BG_TASKS: set = set()
 
 
 class PushSubscriptionIn(BaseModel):

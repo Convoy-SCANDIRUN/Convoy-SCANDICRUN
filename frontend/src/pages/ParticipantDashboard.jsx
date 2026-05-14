@@ -71,7 +71,7 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md"
+            <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md max-h-[90vh] overflow-y-auto"
                            data-testid="edit-profile-dialog">
                 <DialogHeader>
                     <DialogTitle className="font-display text-2xl uppercase tracking-tight">Edit Profile</DialogTitle>

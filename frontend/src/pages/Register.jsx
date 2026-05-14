@@ -5,18 +5,22 @@ import { formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
+import usePush from "@/lib/usePush";
 
 export default function Register() {
     const { register } = useAuth();
     const nav = useNavigate();
+    const { isSupported: pushSupported, subscribe: pushSubscribe } = usePush();
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [role, setRole] = useState("participant");
     const [adminCode, setAdminCode] = useState("");
+    const [pushOptIn, setPushOptIn] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
     const submit = async (e) => {
@@ -27,6 +31,15 @@ export default function Register() {
             if (role === "admin") payload.admin_code = adminCode;
             const u = await register(payload);
             toast.success(`Account created — welcome, ${u.name}`);
+            // Auto-subscribe to push if the user opted in. Permission must be
+            // requested AFTER the auth context updates so the /push/subscribe
+            // call carries the new token, and INSIDE this click handler so it
+            // still counts as a user gesture in Safari / Chrome.
+            if (pushOptIn && pushSupported) {
+                const res = await pushSubscribe();
+                if (res.ok) toast.success("Notifications enabled");
+                else if (res.reason === "denied") toast.info("Notifications were blocked — you can re-enable them later in profile settings.");
+            }
             nav(u.role === "admin" ? "/admin" : "/participant");
         } catch (err) {
             toast.error(formatApiError(err));
@@ -108,6 +121,26 @@ export default function Register() {
                             <p className="text-[10px] text-zinc-500 leading-relaxed">
                                 Issued by your event organization. Without it, you can only register as a participant.
                             </p>
+                        </div>
+                    )}
+                    {pushSupported && (
+                        <div className="border border-white/15 p-3" data-testid="push-consent-section">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <Checkbox
+                                    checked={pushOptIn}
+                                    onCheckedChange={(v) => setPushOptIn(!!v)}
+                                    data-testid="push-consent-checkbox"
+                                    className="mt-0.5"
+                                />
+                                <div className="text-xs leading-relaxed">
+                                    <p className="font-bold uppercase tracking-wider">Notifications</p>
+                                    <p className="text-zinc-400 mt-1">
+                                        Get alerted when teams need help — even with the app closed. Your
+                                        browser will ask for permission after sign-up. You can change this
+                                        any time in profile settings.
+                                    </p>
+                                </div>
+                            </label>
                         </div>
                     )}
                     <Button type="submit" disabled={submitting} data-testid="register-submit-button"

@@ -304,15 +304,41 @@ async def create_event(
     return event
 
 @api_router.get("/events")
-async def list_events(user: dict = Depends(get_current_user)):
+async def list_events(
+    include_archived: bool = False,
+    user: dict = Depends(get_current_user),
+):
+    """List events. Archived ones are hidden by default — pass
+    `include_archived=true` to include them (admin archive view)."""
+    base_filter: dict = {} if include_archived else {"archived": {"$ne": True}}
     if user["role"] == "admin":
-        # All admins have full access to all events
-        events = await db.events.find({}, {"_id": 0}).to_list(1000)
+        events = await db.events.find(base_filter, {"_id": 0}).to_list(1000)
     else:
         regs = await db.registrations.find({"user_id": user["id"]}, {"_id": 0}).to_list(1000)
         event_ids = [r["event_id"] for r in regs]
-        events = await db.events.find({"id": {"$in": event_ids}}, {"_id": 0}).to_list(1000)
+        q = {"id": {"$in": event_ids}, **base_filter}
+        events = await db.events.find(q, {"_id": 0}).to_list(1000)
     return events
+
+
+@api_router.post("/events/{event_id}/archive")
+async def archive_event(event_id: str, user: dict = Depends(require_admin)):
+    """Soft-archive an event so it disappears from the default list but
+    keeps its history (tracks, registrations) for reports."""
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    await db.events.update_one({"id": event_id}, {"$set": {"archived": True}})
+    return {"ok": True, "archived": True}
+
+
+@api_router.post("/events/{event_id}/unarchive")
+async def unarchive_event(event_id: str, user: dict = Depends(require_admin)):
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    await db.events.update_one({"id": event_id}, {"$set": {"archived": False}})
+    return {"ok": True, "archived": False}
 
 @api_router.get("/events/{event_id}")
 async def get_event(event_id: str, user: dict = Depends(get_current_user)):

@@ -16,7 +16,7 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing, ChevronDown, ChevronUp, Archive, ArchiveRestore } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 function EditEventDialog({ event, onClose, onSaved }) {
@@ -148,6 +148,17 @@ export default function AdminDashboard() {
     const [editEvent, setEditEvent] = useState(null);
     const [sosAlert, setSosAlert] = useState(null); // { reg, openedAt }
     const [focusTarget, setFocusTarget] = useState(null);
+    // Collapsible sidebar panels for the admin command-centre. Persisted in
+    // localStorage so each admin gets the layout they prefer across sessions.
+    const [eventsCollapsed, setEventsCollapsed] = useState(() => {
+        try { return localStorage.getItem("rt_admin_events_collapsed") === "1"; } catch { return false; }
+    });
+    const [participantsCollapsed, setParticipantsCollapsed] = useState(() => {
+        try { return localStorage.getItem("rt_admin_participants_collapsed") === "1"; } catch { return false; }
+    });
+    const [showArchived, setShowArchived] = useState(false);
+    useEffect(() => { try { localStorage.setItem("rt_admin_events_collapsed", eventsCollapsed ? "1" : "0"); } catch {} }, [eventsCollapsed]);
+    useEffect(() => { try { localStorage.setItem("rt_admin_participants_collapsed", participantsCollapsed ? "1" : "0"); } catch {} }, [participantsCollapsed]);
     const prevStatusesRef = useRef({});
     const shareUrl = shareEvent ? `${window.location.origin}/join/${shareEvent.code}` : "";
 
@@ -198,7 +209,7 @@ export default function AdminDashboard() {
     };
 
     const loadEvents = async () => {
-        const { data } = await api.get("/events");
+        const { data } = await api.get("/events", { params: { include_archived: showArchived } });
         setEvents(data);
         if (!activeId && data.length) setActiveId(data[0].id);
     };
@@ -209,7 +220,7 @@ export default function AdminDashboard() {
         setRegistrations(data);
     };
 
-    useEffect(() => { loadEvents(); }, []);
+    useEffect(() => { loadEvents(); }, [showArchived]);
     useEffect(() => { loadRegs(); }, [activeId]);
     useEffect(() => {
         if (!activeId) return;
@@ -375,12 +386,26 @@ export default function AdminDashboard() {
             {/* Sidebar */}
             <aside className="absolute top-[88px] bottom-4 left-4 w-[360px] z-[1100] flex flex-col gap-3 overflow-hidden">
                 {/* Events panel */}
-                <div className="glass p-4 flex-shrink-0">
+                <div className={`glass p-4 ${eventsCollapsed ? "flex-shrink-0" : "flex-shrink-0"}`} data-testid="events-panel">
                     <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs uppercase tracking-[0.25em] font-bold text-zinc-300 flex items-center gap-2">
-                            <Calendar className="w-4 h-4" /> Events
-                        </p>
-                        <Dialog open={open} onOpenChange={setOpen}>
+                        <button type="button" onClick={() => setEventsCollapsed((v) => !v)}
+                                data-testid="events-collapse-toggle"
+                                className="text-xs uppercase tracking-[0.25em] font-bold text-zinc-300 flex items-center gap-2 hover:text-white transition">
+                            {eventsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                            <Calendar className="w-4 h-4" /> Events ({events.length})
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <button type="button"
+                                    onClick={() => setShowArchived((v) => !v)}
+                                    data-testid="toggle-archived-events"
+                                    title={showArchived ? "Hide archived events" : "Show archived events"}
+                                    className={`h-8 w-8 flex items-center justify-center border transition ${
+                                        showArchived ? "border-[#FFCC00]/60 text-[#FFCC00] bg-[#FFCC00]/10"
+                                                     : "border-white/15 text-zinc-400 hover:text-white"
+                                    }`}>
+                                <Archive className="w-3.5 h-3.5" />
+                            </button>
+                            <Dialog open={open} onOpenChange={setOpen}>
                             <DialogTrigger asChild>
                                 <Button data-testid="create-event-button"
                                         className="h-8 rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-[10px] tracking-[0.2em]">
@@ -443,8 +468,10 @@ export default function AdminDashboard() {
                                 </form>
                             </DialogContent>
                         </Dialog>
+                        </div>
                     </div>
 
+                    {!eventsCollapsed && (
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1" data-testid="events-list">
                         {events.length === 0 && (
                             <p className="text-xs text-zinc-500 italic">No events yet — create one to get started.</p>
@@ -453,10 +480,15 @@ export default function AdminDashboard() {
                             <div key={e.id}
                                  onClick={() => setActiveId(e.id)}
                                  data-testid={`event-card-${e.id}`}
-                                 className={`p-3 border cursor-pointer transition ${activeId === e.id ? "border-[#007AFF] bg-[#007AFF]/10" : "border-white/10 hover:bg-white/5"}`}>
+                                 className={`p-3 border cursor-pointer transition ${
+                                     e.archived ? "opacity-60" : ""
+                                 } ${activeId === e.id ? "border-[#007AFF] bg-[#007AFF]/10" : "border-white/10 hover:bg-white/5"}`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                        <p className="font-display text-base font-bold uppercase truncate">{e.name}</p>
+                                        <p className="font-display text-base font-bold uppercase truncate">
+                                            {e.name}
+                                            {e.archived && <span className="ml-2 text-[9px] uppercase tracking-wider text-[#FFCC00] font-normal">[archived]</span>}
+                                        </p>
                                         <p className="text-[10px] uppercase tracking-wider text-zinc-400 mt-1">
                                             Code · <span className="text-[#007AFF] font-bold">{e.code}</span>
                                         </p>
@@ -491,6 +523,20 @@ export default function AdminDashboard() {
                                                 className="text-zinc-500 hover:text-[#007AFF] transition">
                                             <Share2 className="w-4 h-4" />
                                         </button>
+                                        <button onClick={async (ev) => {
+                                                    ev.stopPropagation();
+                                                    const action = e.archived ? "unarchive" : "archive";
+                                                    try {
+                                                        await api.post(`/events/${e.id}/${action}`);
+                                                        toast.success(e.archived ? "Event restored" : "Event archived");
+                                                        loadEvents();
+                                                    } catch (err) { toast.error(formatApiError(err)); }
+                                                }}
+                                                data-testid={`archive-event-${e.id}`}
+                                                title={e.archived ? "Restore event" : "Archive event"}
+                                                className="text-zinc-500 hover:text-[#FFCC00] transition">
+                                            {e.archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                                        </button>
                                         <button onClick={(ev) => { ev.stopPropagation(); askDeleteEvent(e); }}
                                                 data-testid={`delete-event-${e.id}`}
                                                 className="text-zinc-500 hover:text-[#FF3B30] transition">
@@ -501,14 +547,22 @@ export default function AdminDashboard() {
                             </div>
                         ))}
                     </div>
+                    )}
                 </div>
 
                 {/* Participants panel */}
                 {active && (
-                    <div className="glass p-4 flex-1 min-h-0 flex flex-col">
-                        <p className="text-xs uppercase tracking-[0.25em] font-bold text-zinc-300 flex items-center gap-2 mb-3">
+                    <div className={`glass p-4 flex flex-col ${participantsCollapsed ? "flex-shrink-0" : "flex-1 min-h-0"}`}
+                         data-testid="participants-panel">
+                        <button type="button" onClick={() => setParticipantsCollapsed((v) => !v)}
+                                data-testid="participants-collapse-toggle"
+                                className={`text-xs uppercase tracking-[0.25em] font-bold text-zinc-300 flex items-center gap-2 hover:text-white transition ${
+                                    participantsCollapsed ? "mb-0" : "mb-3"
+                                }`}>
+                            {participantsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                             <Users className="w-4 h-4" /> Participants ({registrations.length})
-                        </p>
+                        </button>
+                        {!participantsCollapsed && (
                         <div className="space-y-2 overflow-y-auto pr-1 flex-1" data-testid="participants-list">
                             {registrations.length === 0 && (
                                 <p className="text-xs text-zinc-500 italic">No participants yet. Share code <span className="text-[#007AFF]">{active.code}</span></p>
@@ -574,6 +628,7 @@ export default function AdminDashboard() {
                                 </div>
                             ))}
                         </div>
+                        )}
                     </div>
                 )}
             </aside>

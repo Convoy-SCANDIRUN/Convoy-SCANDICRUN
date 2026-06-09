@@ -37,7 +37,7 @@ function buildIcon(reg, opts = {}) {
 
 /** Centers the map on `selfPosition` once on first mount, refits / re-centres
  *  whenever `fitNonce` changes (the parent's "Reset view" button). */
-function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self", focusTarget }) {
+function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self", focusTarget, follow }) {
     const map = useMap();
     const initialised = useRef(false);
 
@@ -56,7 +56,7 @@ function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self"
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selfPosition, allPoints]);
 
-    // Re-fit only when the user clicks "Reset view"
+    // Re-fit when the user clicks "Reset view"
     useEffect(() => {
         if (fitNonce === 0) return; // initial render
         if (defaultMode === "self" && selfPosition) {
@@ -76,6 +76,15 @@ function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self"
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusTarget?.nonce]);
 
+    // Follow-me mode — keep the map centred on the participant's own marker
+    // as new location fixes come in. Re-pans without changing zoom so manual
+    // pinch-zooms by the user are respected.
+    useEffect(() => {
+        if (!follow || !selfPosition) return;
+        map.panTo(selfPosition, { animate: true, duration: 0.4 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selfPosition?.[0], selfPosition?.[1], follow]);
+
     return null;
 }
 
@@ -93,13 +102,31 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
 
     const [fitNonce, setFitNonce] = useState(0);
     const [resetMode, setResetMode] = useState("self"); // "self" | "all"
+    // Follow-me mode keeps the map centred on the participant's own marker as
+    // they move. Defaults ON when we know which marker is the user's. Manual
+    // panning, "All" reset, or focusing on another team switches it off.
+    const [follow, setFollow] = useState(!!selfId);
     const mapRef = useRef(null);
     const markerRefs = useRef({});
 
-    const recenterOnSelf = () => { setResetMode("self"); setFitNonce((n) => n + 1); };
-    const fitAll = () => { setResetMode("all"); setFitNonce((n) => n + 1); };
+    const recenterOnSelf = () => { setResetMode("self"); setFollow(true); setFitNonce((n) => n + 1); };
+    const fitAll = () => { setResetMode("all"); setFollow(false); setFitNonce((n) => n + 1); };
     const zoomIn = () => mapRef.current?.zoomIn();
     const zoomOut = () => mapRef.current?.zoomOut();
+
+    // Wire map drag → exit follow mode so users can freely pan.
+    useEffect(() => {
+        const m = mapRef.current;
+        if (!m) return;
+        const onDragStart = () => setFollow(false);
+        m.on("dragstart", onDragStart);
+        return () => m.off("dragstart", onDragStart);
+    }, []);
+
+    // Focusing on another participant via the sidebar / help nav exits follow.
+    useEffect(() => {
+        if (focusTarget?.id && focusTarget.id !== selfId) setFollow(false);
+    }, [focusTarget?.nonce, focusTarget?.id, selfId]);
 
     // When the parent asks to focus on a team, open that marker's popup
     // a moment after the flyTo animation kicks in so the user gets visual
@@ -135,6 +162,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     fitNonce={fitNonce}
                     defaultMode={resetMode}
                     focusTarget={focusTarget}
+                    follow={follow}
                 />
                 {placed.map((r) => {
                     const isSelf = r.id === selfId;
@@ -203,10 +231,12 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                         onClick={recenterOnSelf}
                         type="button"
                         data-testid="map-center-self-button"
-                        title="Center on me"
-                        className="glass border border-[#34C759]/40 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white w-[60px]"
+                        title={follow ? "Following you — tap to recenter" : "Center on me and follow"}
+                        className={`glass px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white w-[60px] border ${
+                            follow ? "border-[#34C759] bg-[#34C759]/15" : "border-[#34C759]/40"
+                        }`}
                     >
-                        <Locate className="w-3.5 h-3.5 text-[#34C759]" />
+                        <Locate className={`w-3.5 h-3.5 ${follow ? "text-[#34C759] animate-pulse" : "text-[#34C759]"}`} />
                         <span className="text-[10px] uppercase tracking-wider font-bold">Me</span>
                     </button>
                 )}

@@ -517,8 +517,30 @@ export default function ParticipantDashboard() {
     const loadEvents = async () => {
         const { data } = await api.get("/events");
         setEvents(data);
-        if (data.length && !activeEvent) setActiveEvent(data[0]);
+        if (data.length && !activeEvent) {
+            // Restore the user's last selected event from localStorage so
+            // switching browsers / reloading doesn't reset the focus.
+            const lastId = (() => { try { return localStorage.getItem("rt_active_event"); } catch { return null; } })();
+            const found = lastId ? data.find((e) => e.id === lastId) : null;
+            setActiveEvent(found || data[0]);
+        }
     };
+
+    // Persist the selected event so the participant stays put across reloads.
+    useEffect(() => {
+        if (!activeEvent?.id) return;
+        try { localStorage.setItem("rt_active_event", activeEvent.id); } catch {}
+    }, [activeEvent?.id]);
+
+    /** True if the event's end_date is strictly before today (UTC). Used to
+     *  surface an "event has ended" banner to participants. */
+    const eventEnded = (() => {
+        if (!activeEvent?.end_date) return false;
+        try {
+            const end = new Date(`${activeEvent.end_date}T23:59:59Z`);
+            return end.getTime() < Date.now();
+        } catch { return false; }
+    })();
 
     const loadMyReg = async () => {
         if (!activeEvent) return;
@@ -883,8 +905,15 @@ export default function ParticipantDashboard() {
                 </div>
             </header>
 
+            {eventEnded && (
+                <div className="fixed top-[60px] sm:top-[72px] left-0 right-0 z-[1099] bg-[#FFCC00] text-black text-center py-2 px-4 font-bold text-[11px] sm:text-xs uppercase tracking-wider"
+                     data-testid="event-ended-banner">
+                    🏁 This event has ended ({activeEvent?.end_date}). Tracking is still visible for your records.
+                </div>
+            )}
+
             {/* Map — leave room for fixed top + bottom bars */}
-            <div className="absolute inset-0 pt-[60px] sm:pt-[72px] pb-[160px] sm:pb-[180px] pwa-map-pad-bottom">
+            <div className={`absolute inset-0 ${eventEnded ? "pt-[92px] sm:pt-[104px]" : "pt-[60px] sm:pt-[72px]"} pb-[160px] sm:pb-[180px] pwa-map-pad-bottom`}>
                 <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} focusTarget={focusTarget} />
             </div>
 

@@ -133,30 +133,6 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
                         <NotificationsToggle />
                     </div>
 
-                    <div className="border-t border-white/10 pt-4 space-y-2" data-testid="download-report-section">
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Event report</p>
-                        <Button type="button"
-                                onClick={async () => {
-                                    if (!myReg?.id) return;
-                                    const toastId = toast.loading("Building your report…");
-                                    try {
-                                        const { data } = await api.get(`/registrations/${myReg.id}/summary`);
-                                        await buildParticipantPdf(data);
-                                        toast.success("Report downloaded", { id: toastId });
-                                    } catch (err) {
-                                        toast.error(formatApiError(err), { id: toastId });
-                                    }
-                                }}
-                                data-testid="download-report-button"
-                                disabled={!myReg?.id}
-                                className="w-full rounded-none bg-white/10 hover:bg-white/20 border border-white/20 uppercase text-xs tracking-[0.2em] h-11">
-                            <FileDown className="w-4 h-4 mr-2" /> Download my report (PDF)
-                        </Button>
-                        <p className="text-[11px] text-zinc-500 leading-relaxed">
-                            PDF with your daily and total distance, duration and average speed for this event.
-                        </p>
-                    </div>
-
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}
                                 className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
@@ -1314,6 +1290,28 @@ export default function ParticipantDashboard() {
                                                 Switch
                                             </Button>
                                         )}
+                                        <Button onClick={async () => {
+                                                    // The per-event "Download report" lives here on the Event Overview
+                                                    // so participants can grab a PDF for any event they've joined
+                                                    // without first switching to it as the active event.
+                                                    const myRegForThisEvent = e.id === activeEvent?.id
+                                                        ? myReg
+                                                        : await api.get(`/events/${e.id}/my-registration`).then((r) => r.data).catch(() => null);
+                                                    if (!myRegForThisEvent?.id) { toast.error("No registration found for this event"); return; }
+                                                    const toastId = toast.loading("Building your report…");
+                                                    try {
+                                                        const { data } = await api.get(`/registrations/${myRegForThisEvent.id}/summary`);
+                                                        await buildParticipantPdf(data);
+                                                        toast.success("Report downloaded", { id: toastId });
+                                                    } catch (err) {
+                                                        toast.error(formatApiError(err), { id: toastId });
+                                                    }
+                                                }}
+                                                data-testid={`download-event-report-${e.id}`}
+                                                variant="ghost"
+                                                className="h-8 rounded-none border border-white/20 hover:bg-white/10 uppercase text-[10px] tracking-[0.2em]">
+                                            <FileDown className="w-3 h-3 mr-1" /> Report
+                                        </Button>
                                         <Button onClick={() => leaveEvent(e)} variant="ghost"
                                                 data-testid={`leave-event-${e.id}`}
                                                 className="h-8 rounded-none border border-[#FF3B30]/50 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] tracking-[0.2em]">

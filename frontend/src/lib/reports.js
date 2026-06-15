@@ -69,14 +69,21 @@ function loadImage(url) {
 }
 
 async function routeOnRealMapPng(route, width = 1200, height = 600) {
-    if (!route || route.length < 2) return null;
-    const lats = route.map((p) => p[0]);
-    const lngs = route.map((p) => p[1]);
+    return await multiRouteOnRealMapPng([{ points: route, color: "#007AFF" }], width, height);
+}
+
+/** Like `routeOnRealMapPng` but draws several routes on the same map, each in
+ *  its own colour. Useful for the admin event-overview map where every team's
+ *  full route is shown together so the admin can see who went where. */
+async function multiRouteOnRealMapPng(routes, width = 1200, height = 600) {
+    const all = routes.flatMap((r) => r.points || []).filter((p) => p && p.length >= 2);
+    if (all.length < 2) return null;
+    const lats = all.map((p) => p[0]);
+    const lngs = all.map((p) => p[1]);
     const bounds = {
         latMin: Math.min(...lats), latMax: Math.max(...lats),
         lngMin: Math.min(...lngs), lngMax: Math.max(...lngs),
     };
-    // Avoid degenerate bounds (single-point sticky tracks) — pad a tiny window
     if (bounds.latMin === bounds.latMax) { bounds.latMin -= 0.001; bounds.latMax += 0.001; }
     if (bounds.lngMin === bounds.lngMax) { bounds.lngMin -= 0.001; bounds.lngMax += 0.001; }
 
@@ -90,12 +97,10 @@ async function routeOnRealMapPng(route, width = 1200, height = 600) {
     const cols = xMax - xMin + 1;
     const rows = yMax - yMin + 1;
 
-    // Compose tiles onto an off-screen canvas at native tile resolution
     const tileCanvas = document.createElement("canvas");
     tileCanvas.width = cols * TILE_SIZE;
     tileCanvas.height = rows * TILE_SIZE;
     const tctx = tileCanvas.getContext("2d");
-    // Light background for any tiles that fail to load
     tctx.fillStyle = "#F3F6FB";
     tctx.fillRect(0, 0, tileCanvas.width, tileCanvas.height);
 
@@ -111,41 +116,45 @@ async function routeOnRealMapPng(route, width = 1200, height = 600) {
     }
     await Promise.all(tileTasks);
 
-    // Pixel coordinates inside the composed tile canvas
     const project = ([lat, lng]) => [
         (fx(lng) - xMin) * TILE_SIZE,
         (fy(lat) - yMin) * TILE_SIZE,
     ];
 
-    // Draw the route polyline + start/end markers
-    tctx.strokeStyle = "#007AFF";
     tctx.lineWidth = 5;
     tctx.lineJoin = "round";
     tctx.lineCap = "round";
     tctx.shadowColor = "rgba(0,0,0,0.4)";
     tctx.shadowBlur = 4;
-    tctx.beginPath();
-    route.forEach((pt, i) => {
-        const [x, y] = project(pt);
-        if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+    routes.forEach(({ points, color }) => {
+        if (!points || points.length < 2) return;
+        tctx.strokeStyle = color || "#007AFF";
+        tctx.beginPath();
+        points.forEach((pt, i) => {
+            const [x, y] = project(pt);
+            if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+        });
+        tctx.stroke();
     });
-    tctx.stroke();
     tctx.shadowBlur = 0;
 
-    const [sx0, sy0] = project(route[0]);
-    const [ex, ey] = project(route[route.length - 1]);
-    tctx.fillStyle = "#34C759"; tctx.beginPath(); tctx.arc(sx0, sy0, 9, 0, Math.PI * 2); tctx.fill();
-    tctx.fillStyle = "#FF3B30"; tctx.beginPath(); tctx.arc(ex, ey, 9, 0, Math.PI * 2); tctx.fill();
-    tctx.fillStyle = "#fff";
-    tctx.font = "bold 12px sans-serif"; tctx.textAlign = "center"; tctx.textBaseline = "middle";
-    tctx.fillText("S", sx0, sy0);
-    tctx.fillText("E", ex, ey);
+    // Single-route case: mark start (green) and end (red).
+    if (routes.length === 1 && routes[0].points && routes[0].points.length >= 2) {
+        const pts = routes[0].points;
+        const [sx0, sy0] = project(pts[0]);
+        const [ex, ey] = project(pts[pts.length - 1]);
+        tctx.fillStyle = "#34C759"; tctx.beginPath(); tctx.arc(sx0, sy0, 9, 0, Math.PI * 2); tctx.fill();
+        tctx.fillStyle = "#FF3B30"; tctx.beginPath(); tctx.arc(ex, ey, 9, 0, Math.PI * 2); tctx.fill();
+        tctx.fillStyle = "#fff";
+        tctx.font = "bold 12px sans-serif"; tctx.textAlign = "center"; tctx.textBaseline = "middle";
+        tctx.fillText("S", sx0, sy0);
+        tctx.fillText("E", ex, ey);
+    }
 
-    // Crop to the actual route bounding box (with a 24px margin) so the PDF
-    // doesn't waste space on empty surrounding tiles.
     const margin = 24;
-    const xs = route.map(project).map((p) => p[0]);
-    const ys = route.map(project).map((p) => p[1]);
+    const projected = all.map(project);
+    const xs = projected.map((p) => p[0]);
+    const ys = projected.map((p) => p[1]);
     let cropX = Math.max(0, Math.min(...xs) - margin);
     let cropY = Math.max(0, Math.min(...ys) - margin);
     let cropW = Math.min(tileCanvas.width - cropX, Math.max(...xs) - Math.min(...xs) + margin * 2);
@@ -153,14 +162,12 @@ async function routeOnRealMapPng(route, width = 1200, height = 600) {
     if (cropW < 50) cropW = tileCanvas.width;
     if (cropH < 50) cropH = tileCanvas.height;
 
-    // Re-render at the requested PDF dimensions
     const out = document.createElement("canvas");
     out.width = width;
     out.height = height;
     const octx = out.getContext("2d");
     octx.imageSmoothingEnabled = true;
     octx.imageSmoothingQuality = "high";
-    // Letterbox-fit the cropped region so we don't squash the aspect ratio
     const ratioSrc = cropW / cropH;
     const ratioDst = width / height;
     let dw, dh, dx, dy;
@@ -328,6 +335,31 @@ export async function buildParticipantPdf(summary) {
         styles: { fontSize: 9 },
     });
 
+    // Whole-event overview map — the `total.route` is the union of every
+    // logged point, so a single render here covers the entire trip.
+    if (total.route && total.route.length >= 2) {
+        doc.addPage();
+        header(doc, "Event overview map", `${r.team_name} · T${r.team_number}`);
+        let overviewPng = null;
+        try { overviewPng = await routeOnRealMapPng(total.route, 1400, 700); }
+        catch (_) { /* fall through */ }
+        if (!overviewPng) overviewPng = routePreviewPng(total.route, 1400, 700);
+        if (overviewPng) doc.addImage(overviewPng, "PNG", 14, 26, W - 28, (W - 28) / 2);
+        const y2 = 26 + (W - 28) / 2 + 6;
+        autoTable(doc, {
+            startY: y2,
+            head: [["Total distance", "Duration", "Moving", "Avg km/h", "Max km/h", "Days driven"]],
+            body: [[
+                fmtKm(total.distance_km), fmtMin(total.duration_min), fmtMin(total.moving_min),
+                fmtKmh(total.avg_kmh), fmtKmh(total.max_kmh),
+                String(daily.filter((d) => d.distance_km > 0).length),
+            ]],
+            theme: "grid",
+            headStyles: { fillColor: C_PRIMARY, textColor: "#fff", fontStyle: "bold" },
+            styles: { fontSize: 9 },
+        });
+    }
+
     // One page per day with a route preview, only if there were points.
     // Try to render the route on real OSM tiles first; fall back to the
     // simple polyline preview if the tile fetches fail (offline).
@@ -360,8 +392,13 @@ export async function buildParticipantPdf(summary) {
 }
 
 /* ---------- Admin (event-wide) summary PDF ---------- */
-export function buildEventPdf(summary) {
+const TEAM_COLORS = [
+    "#007AFF", "#34C759", "#FF3B30", "#FFCC00", "#5856D6", "#FF9500",
+    "#AF52DE", "#5AC8FA", "#FF2D55", "#A2845E", "#30B0C7", "#BF5AF2",
+];
+export async function buildEventPdf(summary) {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth();
     const { event, days, teams } = summary;
     header(doc, `${event.name} — Admin report`, `${event.start_date} → ${event.end_date}`);
 
@@ -396,12 +433,107 @@ export function buildEventPdf(summary) {
         styles: { fontSize: 9 },
     });
 
-    // One page per day with all teams' stats for that day
-    days.forEach((day) => {
+    // Event overview map — every team's whole-event route on a single map,
+    // each in their own colour. Gives the admin a glance-and-go view of who
+    // went where for the entire event window.
+    const teamsWithRoutes = teams
+        .map((t, i) => ({ team: t, color: TEAM_COLORS[i % TEAM_COLORS.length], route: t.total.route || [] }))
+        .filter((x) => x.route.length >= 2);
+    if (teamsWithRoutes.length > 0) {
+        doc.addPage();
+        header(doc, "Event overview map", `${teamsWithRoutes.length} team${teamsWithRoutes.length === 1 ? "" : "s"}`);
+        let overviewPng = null;
+        try {
+            overviewPng = await multiRouteOnRealMapPng(
+                teamsWithRoutes.map((x) => ({ points: x.route, color: x.color })),
+                1400, 700
+            );
+        } catch (_) { /* fall through */ }
+        if (overviewPng) doc.addImage(overviewPng, "PNG", 14, 26, W - 28, (W - 28) / 2);
+        // Compact colour legend below the map so admins know which line is whose.
+        let ly = 26 + (W - 28) / 2 + 8;
+        doc.setFontSize(9);
+        doc.setFont(FONT_SANS, "bold");
+        doc.text("Legend", 14, ly);
+        ly += 4;
+        doc.setFont(FONT_SANS, "normal");
+        teamsWithRoutes.forEach((x, idx) => {
+            const col = idx % 3;
+            const row = Math.floor(idx / 3);
+            const xPos = 14 + col * ((W - 28) / 3);
+            const yPos = ly + row * 6;
+            doc.setFillColor(x.color);
+            doc.rect(xPos, yPos - 3, 4, 4, "F");
+            doc.setTextColor(C_TEXT);
+            doc.text(`T${x.team.team_number} · ${x.team.team_name}`, xPos + 6, yPos);
+        });
+    }
+
+    // Per-team page: each team's whole-event route + total stats. Gives the
+    // admin the same map a participant gets in their own report, but inside
+    // the consolidated event PDF.
+    for (let i = 0; i < teams.length; i++) {
+        const t = teams[i];
+        if (!t.total.route || t.total.route.length < 2) continue;
+        doc.addPage();
+        header(doc, `T${t.team_number} · ${t.team_name}`,
+               `${(t.first_name || "") + " " + (t.last_name || "")}`.trim() || event.name);
+        let teamPng = null;
+        try { teamPng = await routeOnRealMapPng(t.total.route, 1400, 700); }
+        catch (_) { /* fall through */ }
+        if (!teamPng) teamPng = routePreviewPng(t.total.route, 1400, 700);
+        if (teamPng) doc.addImage(teamPng, "PNG", 14, 26, W - 28, (W - 28) / 2);
+        const y2 = 26 + (W - 28) / 2 + 6;
+        autoTable(doc, {
+            startY: y2,
+            head: [["Distance", "Duration", "Moving", "Stopped", "Avg km/h", "Max km/h"]],
+            body: [[
+                fmtKm(t.total.distance_km), fmtMin(t.total.duration_min), fmtMin(t.total.moving_min),
+                fmtMin(t.total.stopped_min), fmtKmh(t.total.avg_kmh), fmtKmh(t.total.max_kmh),
+            ]],
+            theme: "grid",
+            headStyles: { fillColor: C_PRIMARY, textColor: "#fff", fontStyle: "bold" },
+            styles: { fontSize: 9 },
+        });
+
+        // Per-day stats table for this team
+        autoTable(doc, {
+            startY: doc.lastAutoTable.finalY + 4,
+            head: [["Date", "Distance", "Duration", "Avg km/h", "Max km/h"]],
+            body: t.daily.map((d) => [
+                d.date, fmtKm(d.distance_km), fmtMin(d.duration_min),
+                fmtKmh(d.avg_kmh), fmtKmh(d.max_kmh),
+            ]),
+            theme: "striped",
+            headStyles: { fillColor: "#111", textColor: "#fff" },
+            styles: { fontSize: 8 },
+        });
+    }
+
+    // One page per day with all teams' stats AND all teams' daily routes
+    // overlaid on a single map so the admin can compare paths.
+    for (const day of days) {
         doc.addPage();
         header(doc, `Day ${day}`, event.name);
+        const dayRoutes = teams
+            .map((t, i) => {
+                const d = t.daily.find((x) => x.date === day);
+                return { team: t, color: TEAM_COLORS[i % TEAM_COLORS.length], route: d?.route || [] };
+            })
+            .filter((x) => x.route.length >= 2);
+        if (dayRoutes.length > 0) {
+            let dayPng = null;
+            try {
+                dayPng = await multiRouteOnRealMapPng(
+                    dayRoutes.map((x) => ({ points: x.route, color: x.color })),
+                    1400, 500
+                );
+            } catch (_) { /* fall through */ }
+            if (dayPng) doc.addImage(dayPng, "PNG", 14, 26, W - 28, (W - 28) / 2.8);
+        }
+        const tableY = dayRoutes.length > 0 ? 26 + (W - 28) / 2.8 + 6 : 26;
         autoTable(doc, {
-            startY: 26,
+            startY: tableY,
             head: [["Team", "Driver", "Distance", "Duration", "Avg km/h", "Max km/h"]],
             body: teams.map((t) => {
                 const d = t.daily.find((x) => x.date === day) || {};
@@ -418,7 +550,7 @@ export function buildEventPdf(summary) {
             headStyles: { fillColor: "#111", textColor: "#fff" },
             styles: { fontSize: 9 },
         });
-    });
+    }
 
     footer(doc);
     const slug = `${event.name}-admin-report`.replace(/[^\w-]+/g, "_");

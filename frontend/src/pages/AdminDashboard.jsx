@@ -506,7 +506,7 @@ export default function AdminDashboard() {
                                                     const toastId = toast.loading("Building event report…");
                                                     try {
                                                         const { data } = await api.get(`/events/${e.id}/summary`);
-                                                        buildEventPdf(data);
+                                                        await buildEventPdf(data);
                                                         toast.success("Report downloaded", { id: toastId });
                                                     } catch (err) {
                                                         toast.error(formatApiError(err), { id: toastId });

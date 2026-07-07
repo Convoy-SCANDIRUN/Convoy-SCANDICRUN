@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
 import InstallAppButton from "@/components/InstallAppButton";
 import NotificationsToggle from "@/components/NotificationsToggle";
+import LanguagePicker from "@/components/LanguagePicker";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { buildParticipantPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
@@ -24,10 +25,12 @@ import {
     Calendar, ListChecks, ShieldCheck, Crosshair, Trash2, UserCog, FileDown,
 } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
+import { useTranslation } from "react-i18next";
 
 const LOCATION_INTERVAL_MS = 15_000;
 
 function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
+    const { t } = useTranslation();
     const [teamNumber, setTeamNumber] = useState("");
     const [teamName, setTeamName] = useState("");
     const [first, setFirst] = useState("");
@@ -74,73 +77,71 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
             <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md max-h-[90vh] overflow-y-auto"
                            data-testid="edit-profile-dialog">
                 <DialogHeader>
-                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">Edit Profile</DialogTitle>
-                    <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                        Update your team details and picture
-                    </DialogDescription>
+                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("profile.editTitle")}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={submit} className="space-y-4" data-testid="edit-profile-form">
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">Team #</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.teamNumber")}</Label>
                             <Input value={teamNumber} onChange={(e) => setTeamNumber(e.target.value)} required
                                    data-testid="edit-team-number-input"
                                    className="bg-transparent border-white/20 rounded-none h-11" />
                         </div>
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">Team name</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.teamName")}</Label>
                             <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} required
                                    data-testid="edit-team-name-input"
                                    className="bg-transparent border-white/20 rounded-none h-11" />
                         </div>
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">First name</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.firstName")}</Label>
                             <Input value={first} onChange={(e) => setFirst(e.target.value)} required
                                    data-testid="edit-first-name-input"
                                    className="bg-transparent border-white/20 rounded-none h-11" />
                         </div>
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">Last name</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.lastName")}</Label>
                             <Input value={last} onChange={(e) => setLast(e.target.value)} required
                                    data-testid="edit-last-name-input"
                                    className="bg-transparent border-white/20 rounded-none h-11" />
                         </div>
                     </div>
                     <div>
-                        <Label className="text-xs uppercase tracking-[0.2em]">New profile picture (optional)</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.photo")} ({t("common.optional")})</Label>
                         <Input type="file" accept="image/*" onChange={(e) => setPic(e.target.files?.[0] || null)}
                                data-testid="edit-profile-picture-input"
                                className="bg-transparent border-white/20 rounded-none h-11 file:bg-white/10 file:text-white file:border-0 file:px-3 file:mr-3" />
                         {myReg?.profile_picture_path && !pic && (
                             <div className="mt-2 flex items-center gap-2">
                                 <img src={fileUrl(myReg.profile_picture_path)} alt="" className="w-10 h-10 rounded-full object-cover border border-white/20" />
-                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider">current</span>
+                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider">{t("profile.currentPhoto")}</span>
                             </div>
                         )}
                     </div>
 
                     <div className="border-t border-white/10 pt-4 space-y-2" data-testid="install-app-section">
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Install app</p>
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">{t("profile.installAppHeader")}</p>
                         <InstallAppButton className="w-full" />
-                        <p className="text-[11px] text-zinc-500 leading-relaxed">
-                            Install Convoy on your phone for better background tracking, faster start-up
-                            and one-tap access from your home screen.
-                        </p>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed">{t("profile.installAppHint")}</p>
                     </div>
 
                     <div className="border-t border-white/10 pt-4 space-y-2" data-testid="notifications-section">
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">Push notifications</p>
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">{t("profile.pushHeader")}</p>
                         <NotificationsToggle />
+                    </div>
+
+                    <div className="border-t border-white/10 pt-4" data-testid="language-section">
+                        <LanguagePicker />
                     </div>
 
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}
                                 className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button type="submit" disabled={submitting} data-testid="edit-profile-save"
                                 className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em]">
-                            {submitting ? "Saving…" : "Save changes"}
+                            {submitting ? t("common.saving") : t("profile.saveChanges")}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -440,6 +441,7 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
 }
 
 export default function ParticipantDashboard() {
+    const { t } = useTranslation();
     const { user, logout, deleteAccount } = useAuth();
     const [events, setEvents] = useState([]);
     const [activeEvent, setActiveEvent] = useState(null);
@@ -848,29 +850,29 @@ export default function ParticipantDashboard() {
                 <div className="flex items-center gap-1 sm:gap-2">
                     <Button variant="ghost" onClick={() => setEditProfileOpen(true)} data-testid="edit-profile-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3"
-                            title="Edit profile">
-                        <UserCog className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Profile</span>
+                            title={t("nav.profile")}>
+                        <UserCog className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.profile")}</span>
                     </Button>
                     <Button variant="ghost" onClick={() => setShowEventsPanel(true)} data-testid="my-events-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <ListChecks className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">My Events</span>
+                        <ListChecks className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.myEvents")}</span>
                     </Button>
                     <Button variant="ghost" onClick={() => setShowJoin(true)} data-testid="join-other-event-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <Plus className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Join</span>
+                        <Plus className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("participant.joinEvent")}</span>
                     </Button>
                     <Button variant="ghost" onClick={logout} data-testid="logout-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <LogOut className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">Logout</span>
+                        <LogOut className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.logout")}</span>
                     </Button>
                     <Button variant="ghost"
                             onClick={() => setConfirmAction({
-                                title: "Delete your account?",
-                                description: "Your account, all event registrations and location data will be permanently removed. This cannot be undone.",
-                                confirmLabel: "Delete account",
+                                title: t("profile.deleteAccountConfirm"),
+                                description: t("profile.deleteAccountBody"),
+                                confirmLabel: t("profile.deleteAccount"),
                                 destructive: true,
                                 run: async () => {
-                                    try { await deleteAccount(); toast.success("Account deleted"); }
+                                    try { await deleteAccount(); toast.success(t("common.success")); }
                                     catch (err) { toast.error(formatApiError(err)); }
                                 },
                             })}
@@ -884,7 +886,7 @@ export default function ParticipantDashboard() {
             {eventEnded && (
                 <div className="fixed top-[60px] sm:top-[72px] left-0 right-0 z-[1099] bg-[#FFCC00] text-black text-center py-2 px-4 font-bold text-[11px] sm:text-xs uppercase tracking-wider"
                      data-testid="event-ended-banner">
-                    🏁 This event has ended ({activeEvent?.end_date}). Tracking is still visible for your records.
+                    {t("participant.eventEnded", { date: activeEvent?.end_date })}
                 </div>
             )}
 
@@ -944,7 +946,7 @@ export default function ParticipantDashboard() {
                     {myReg.help_status === "help" && (
                         <button onClick={clearStatus} data-testid="clear-status-button"
                                 className="w-full max-w-md text-[10px] sm:text-xs uppercase tracking-[0.2em] sm:tracking-[0.3em] py-1 sm:py-2 border border-white/30 bg-black/60 backdrop-blur-xl hover:bg-white/10">
-                            Cancel — I'm okay
+                            {t("participant.clearButton")}
                         </button>
                     )}
                     <div className="w-full max-w-md grid grid-cols-2 gap-2 sm:gap-3">
@@ -953,29 +955,25 @@ export default function ParticipantDashboard() {
                                     bg-[#FFCC00] hover:bg-[#E6B800] shadow-[0_0_24px_rgba(255,204,0,0.55)]
                                     ${myReg.help_status === "help" ? "ring-4 ring-[#FFCC00] animate-pulse" : ""}`}>
                             <span className="flex items-center justify-center gap-1.5 sm:gap-2">
-                                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" /> I Need Help
+                                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" /> {t("participant.helpButton")}
                             </span>
                         </button>
                         <button onClick={openSosDialog} data-testid="sos-button"
                                 className="relative py-3 sm:py-5 font-black text-sm sm:text-lg uppercase tracking-[0.1em] sm:tracking-[0.15em] text-white transition-all
                                     bg-[#FF3B30] hover:bg-[#D32F2F] shadow-[0_0_30px_rgba(255,59,48,0.7)]">
                             <span className="flex items-center justify-center gap-1.5 sm:gap-2">
-                                <AlertOctagon className="w-4 h-4 sm:w-5 sm:h-5" /> SOS
+                                <AlertOctagon className="w-4 h-4 sm:w-5 sm:h-5" /> {t("participant.sosButton")}
                             </span>
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* Active help-requests panel — visible to all participants. Each
-                row is a button that focuses the map on the team in distress AND
-                opens a navigation dialog with approximate distance + drive
-                time. */}
             {activeHelp.length > 0 && (
                 <div className="absolute top-[80px] left-1/2 -translate-x-1/2 z-[1102] glass border-l-4 border-[#FFCC00] px-4 py-3 max-w-[90vw] sm:max-w-md"
                      data-testid="active-help-panel">
                     <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-[#FFCC00] mb-2 flex items-center gap-2">
-                        <AlertTriangle className="w-3 h-3" /> Active help requests ({activeHelp.length})
+                        <AlertTriangle className="w-3 h-3" /> {t("participant.activeHelpTitle", { count: activeHelp.length })}
                     </p>
                     <ul className="space-y-1 max-h-32 overflow-y-auto">
                         {activeHelp.map((r) => (

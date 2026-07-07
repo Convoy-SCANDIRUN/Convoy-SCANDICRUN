@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -9,9 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
+import LanguagePicker from "@/components/LanguagePicker";
 import usePush from "@/lib/usePush";
 
 export default function Register() {
+    const { t } = useTranslation();
     const { register } = useAuth();
     const nav = useNavigate();
     const { isSupported: pushSupported, subscribe: pushSubscribe } = usePush();
@@ -30,15 +33,15 @@ export default function Register() {
             const payload = { name, email, password, role };
             if (role === "admin") payload.admin_code = adminCode;
             const u = await register(payload);
-            toast.success(`Account created — welcome, ${u.name}`);
+            toast.success(t("auth.registerSuccess", { name: u.name }));
             // Auto-subscribe to push if the user opted in. Permission must be
             // requested AFTER the auth context updates so the /push/subscribe
             // call carries the new token, and INSIDE this click handler so it
             // still counts as a user gesture in Safari / Chrome.
             if (pushOptIn && pushSupported) {
                 const res = await pushSubscribe();
-                if (res.ok) toast.success("Notifications enabled");
-                else if (res.reason === "denied") toast.info("Notifications were blocked — you can re-enable them later in profile settings.");
+                if (res.ok) toast.success(t("auth.notificationsEnabled"));
+                else if (res.reason === "denied") toast.info(t("auth.notificationsBlocked"));
             }
             nav(u.role === "admin" ? "/admin" : "/participant");
         } catch (err) {
@@ -63,64 +66,61 @@ export default function Register() {
                 <div className="flex items-center gap-3 mb-8">
                     <BrandLogo className="w-12 h-12" />
                     <div>
-                        <p className="font-display text-3xl font-black uppercase leading-none">Create Account</p>
+                        <p className="font-display text-3xl font-black uppercase leading-none">{t("auth.register")}</p>
                         <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mt-1">
-                            Join the convoy
+                            {t("brand.subtitle")}
                         </p>
                     </div>
                 </div>
 
                 <form onSubmit={submit} className="space-y-5" data-testid="register-form">
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">Display name</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">{t("auth.name")}</Label>
                         <Input value={name} onChange={(e) => setName(e.target.value)} required
                                data-testid="register-name-input"
                                className="bg-transparent border-white/20 rounded-none h-12 focus-visible:ring-[#007AFF]" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">Email</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">{t("auth.email")}</Label>
                         <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                                data-testid="register-email-input"
                                className="bg-transparent border-white/20 rounded-none h-12 focus-visible:ring-[#007AFF]" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">Password</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">{t("auth.password")}</Label>
                         <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
                                data-testid="register-password-input"
                                className="bg-transparent border-white/20 rounded-none h-12 focus-visible:ring-[#007AFF]" />
                     </div>
                     <div className="space-y-3">
-                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">Role</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">{t("auth.role")}</Label>
                         <RadioGroup value={role} onValueChange={setRole} className="grid grid-cols-2 gap-3" data-testid="register-role-group">
                             <div role="button" onClick={() => setRole("participant")}
                                  className={`flex items-center gap-2 p-3 border cursor-pointer ${role === "participant" ? "border-[#007AFF] bg-[#007AFF]/10" : "border-white/15"}`}>
                                 <RadioGroupItem value="participant" data-testid="role-participant" />
-                                <span className="text-sm uppercase tracking-wider">Participant</span>
+                                <span className="text-sm uppercase tracking-wider">{t("auth.roleParticipant")}</span>
                             </div>
                             <div role="button" onClick={() => setRole("admin")}
                                  className={`flex items-center gap-2 p-3 border cursor-pointer ${role === "admin" ? "border-[#007AFF] bg-[#007AFF]/10" : "border-white/15"}`}>
                                 <RadioGroupItem value="admin" data-testid="role-admin" />
-                                <span className="text-sm uppercase tracking-wider">Administrator</span>
+                                <span className="text-sm uppercase tracking-wider">{t("auth.roleAdmin")}</span>
                             </div>
                         </RadioGroup>
                     </div>
                     {role === "admin" && (
                         <div className="space-y-2" data-testid="admin-code-section">
                             <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#FFCC00]">
-                                Administrator Code
+                                {t("auth.adminCode")}
                             </Label>
                             <Input
                                 type="password"
                                 value={adminCode}
                                 onChange={(e) => setAdminCode(e.target.value)}
                                 required
-                                placeholder="Required to register as admin"
+                                placeholder={t("auth.adminCodeHint")}
                                 data-testid="admin-code-input"
                                 className="bg-transparent border-[#FFCC00]/40 rounded-none h-12 focus-visible:ring-[#FFCC00]"
                             />
-                            <p className="text-[10px] text-zinc-500 leading-relaxed">
-                                Issued by your event organization. Without it, you can only register as a participant.
-                            </p>
                         </div>
                     )}
                     {pushSupported && (
@@ -133,26 +133,25 @@ export default function Register() {
                                     className="mt-0.5"
                                 />
                                 <div className="text-xs leading-relaxed">
-                                    <p className="font-bold uppercase tracking-wider">Notifications</p>
-                                    <p className="text-zinc-400 mt-1">
-                                        Get alerted when teams need help — even with the app closed. Your
-                                        browser will ask for permission after sign-up. You can change this
-                                        any time in profile settings.
-                                    </p>
+                                    <p className="font-bold uppercase tracking-wider">{t("auth.pushConsent")}</p>
+                                    <p className="text-zinc-400 mt-1">{t("auth.pushConsentBody")}</p>
                                 </div>
                             </label>
                         </div>
                     )}
                     <Button type="submit" disabled={submitting} data-testid="register-submit-button"
                             className="w-full h-12 bg-[#007AFF] hover:bg-[#005bb5] rounded-none font-bold uppercase tracking-[0.2em]">
-                        {submitting ? "Creating…" : "Create Account"}
+                        {submitting ? t("auth.registering") : t("auth.register")}
                     </Button>
                 </form>
 
                 <p className="mt-6 text-center text-sm text-zinc-400">
-                    Already have an account?{" "}
-                    <Link to="/login" className="text-[#007AFF] hover:underline" data-testid="login-link">Sign in</Link>
+                    {t("auth.alreadyHaveAccount")}{" "}
+                    <Link to="/login" className="text-[#007AFF] hover:underline" data-testid="login-link">{t("auth.signInLink")}</Link>
                 </p>
+                <div className="mt-6 pt-4 border-t border-white/10">
+                    <LanguagePicker compact />
+                </div>
             </div>
         </div>
     );

@@ -1,19 +1,20 @@
 import { Bell, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import usePush from "@/lib/usePush";
 
 /** UI control to enable/disable Web Push notifications for the current user.
  *  Shows browser support state honestly — on unsupported browsers (e.g. iOS
  *  Safari outside a PWA install) it displays an inline explanation. */
 export default function NotificationsToggle() {
+    const { t } = useTranslation();
     const { isSupported, permission, isSubscribed, busy, subscribe, unsubscribe } = usePush();
 
     if (!isSupported) {
         return (
             <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="push-unsupported">
-                Push notifications aren't supported by this browser. On iPhone, install Convoy to
-                your home screen and open it from there — iOS 16.4+ then supports notifications.
+                {t("profile.pushUnsupported")}
             </p>
         );
     }
@@ -21,13 +22,13 @@ export default function NotificationsToggle() {
     const handle = async () => {
         if (isSubscribed) {
             await unsubscribe();
-            toast.info("Notifications turned off");
+            toast.info(t("auth.notificationsBlocked"));
             return;
         }
         const res = await subscribe();
-        if (res.ok) toast.success("Notifications enabled");
-        else if (res.reason === "denied") toast.error("Notifications were blocked in your browser settings.");
-        else toast.error("Couldn't enable notifications");
+        if (res.ok) toast.success(t("auth.notificationsEnabled"));
+        else if (res.reason === "denied") toast.error(t("profile.pushBlocked"));
+        else toast.error(t("errors.generic"));
     };
 
     return (
@@ -42,17 +43,12 @@ export default function NotificationsToggle() {
                             : "bg-[#007AFF] hover:bg-[#005bb5]"
                     }`}>
                 {isSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
-                {isSubscribed ? "Turn off notifications" : "Enable notifications"}
+                {isSubscribed ? t("profile.pushDisable") : t("profile.pushEnable")}
             </Button>
             {permission === "denied" && (
-                <p className="text-[11px] text-[#FF3B30]">
-                    Notifications are blocked. Allow them in your browser site settings, then reload.
-                </p>
+                <p className="text-[11px] text-[#FF3B30]">{t("profile.pushBlocked")}</p>
             )}
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-                Get alerted when any team raises a help request, and (admins) when a team triggers SOS —
-                even when Convoy is in the background.
-            </p>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">{t("profile.pushHint")}</p>
         </div>
     );
 }

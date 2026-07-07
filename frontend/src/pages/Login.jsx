@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -7,8 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
+import LanguagePicker from "@/components/LanguagePicker";
 
 export default function Login() {
+    const { t } = useTranslation();
     const { login } = useAuth();
     const nav = useNavigate();
     const [email, setEmail] = useState("");
@@ -20,7 +23,7 @@ export default function Login() {
         setSubmitting(true);
         try {
             const u = await login(email, password);
-            toast.success(`Welcome back, ${u.name}`);
+            toast.success(t("auth.loginSuccess", { name: u.name }));
             nav(u.role === "admin" ? "/admin" : "/participant");
         } catch (err) {
             toast.error(formatApiError(err));
@@ -45,10 +48,10 @@ export default function Login() {
                     <BrandLogo className="w-12 h-12" />
                     <div>
                         <p className="font-display text-3xl font-black tracking-tight uppercase leading-none">
-                            Convoy
+                            {t("brand.title")}
                         </p>
                         <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mt-1">
-                            Tactical Tracker
+                            {t("brand.subtitle")}
                         </p>
                     </div>
                 </div>
@@ -56,7 +59,7 @@ export default function Login() {
                 <form onSubmit={submit} className="space-y-5" data-testid="login-form">
                     <div className="space-y-2">
                         <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">
-                            Email
+                            {t("auth.email")}
                         </Label>
                         <Input
                             type="email"
@@ -69,7 +72,7 @@ export default function Login() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-300">
-                            Password
+                            {t("auth.password")}
                         </Label>
                         <Input
                             type="password"
@@ -86,21 +89,25 @@ export default function Login() {
                         data-testid="login-submit-button"
                         className="w-full h-12 bg-[#007AFF] hover:bg-[#005bb5] rounded-none font-bold uppercase tracking-[0.2em]"
                     >
-                        {submitting ? "Signing in…" : "Sign In"}
+                        {submitting ? t("auth.signingIn") : t("auth.signIn")}
                     </Button>
                 </form>
 
                 <p className="mt-6 text-center text-sm text-zinc-400">
-                    No account?{" "}
+                    {t("auth.noAccount")}{" "}
                     <Link to="/register" className="text-[#007AFF] hover:underline" data-testid="register-link">
-                        Create one
+                        {t("auth.createOne")}
                     </Link>
                 </p>
                 <p className="mt-2 text-center text-xs">
                     <Link to="/forgot-password" className="text-zinc-500 hover:text-zinc-300 uppercase tracking-[0.25em]" data-testid="forgot-password-link">
-                        Forgot password?
+                        {t("auth.forgotPassword")}
                     </Link>
                 </p>
+
+                <div className="mt-6 pt-4 border-t border-white/10">
+                    <LanguagePicker compact />
+                </div>
             </div>
         </div>
     );

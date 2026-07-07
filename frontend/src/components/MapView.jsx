@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { Crosshair, Locate, Plus, Minus } from "lucide-react";
 
@@ -89,6 +90,7 @@ function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self"
 }
 
 export default function MapView({ registrations = [], height = "100%", hideSos = false, selfId = null, focusTarget = null }) {
+    const { t } = useTranslation();
     const placed = useMemo(
         () => registrations.filter((r) => r.lat != null && r.lng != null),
         [registrations]
@@ -212,7 +214,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     onClick={zoomIn}
                     type="button"
                     data-testid="map-zoom-in-button"
-                    title="Zoom in"
+                    title={t("map.zoomIn")}
                     className="glass border border-white/15 px-2 py-1.5 flex items-center justify-center hover:bg-white/10 transition text-white w-[60px]"
                 >
                     <Plus className="w-3.5 h-3.5" />
@@ -221,7 +223,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     onClick={zoomOut}
                     type="button"
                     data-testid="map-zoom-out-button"
-                    title="Zoom out"
+                    title={t("map.zoomOut")}
                     className="glass border border-white/15 px-2 py-1.5 flex items-center justify-center hover:bg-white/10 transition text-white w-[60px]"
                 >
                     <Minus className="w-3.5 h-3.5" />
@@ -231,24 +233,24 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                         onClick={recenterOnSelf}
                         type="button"
                         data-testid="map-center-self-button"
-                        title={follow ? "Following you — tap to recenter" : "Center on me and follow"}
+                        title={follow ? t("map.followingYou") : t("map.centerAndFollow")}
                         className={`glass px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white w-[60px] border ${
                             follow ? "border-[#34C759] bg-[#34C759]/15" : "border-[#34C759]/40"
                         }`}
                     >
                         <Locate className={`w-3.5 h-3.5 ${follow ? "text-[#34C759] animate-pulse" : "text-[#34C759]"}`} />
-                        <span className="text-[10px] uppercase tracking-wider font-bold">Me</span>
+                        <span className="text-[10px] uppercase tracking-wider font-bold">{t("map.me")}</span>
                     </button>
                 )}
                 <button
                     onClick={fitAll}
                     type="button"
                     data-testid="map-reset-button"
-                    title="Reset view (fit all participants)"
+                    title={t("map.resetView")}
                     className="glass border border-white/15 px-2 py-1.5 flex items-center gap-1.5 hover:bg-white/10 transition text-white w-[60px]"
                 >
                     <Crosshair className="w-3.5 h-3.5 text-[#007AFF]" />
-                    <span className="text-[10px] uppercase tracking-wider font-bold">All</span>
+                    <span className="text-[10px] uppercase tracking-wider font-bold">{t("map.all")}</span>
                 </button>
             </div>
         </div>

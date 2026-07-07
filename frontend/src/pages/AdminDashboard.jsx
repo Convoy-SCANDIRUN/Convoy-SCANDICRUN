@@ -3,8 +3,10 @@ import api, { fileUrl, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import MapView from "@/components/MapView";
 import InstallAppButton from "@/components/InstallAppButton";
+import AdminSettingsDialog from "@/components/AdminSettingsDialog";
 import BrandLogo from "@/components/BrandLogo";
 import usePush from "@/lib/usePush";
+import { useTranslation } from "react-i18next";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { buildEventPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
@@ -16,7 +18,7 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing, ChevronDown, ChevronUp, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing, ChevronDown, ChevronUp, Archive, ArchiveRestore, Settings } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 function EditEventDialog({ event, onClose, onSaved }) {
@@ -157,6 +159,8 @@ export default function AdminDashboard() {
         try { return localStorage.getItem("rt_admin_participants_collapsed") === "1"; } catch { return false; }
     });
     const [showArchived, setShowArchived] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const { t } = useTranslation();
     useEffect(() => { try { localStorage.setItem("rt_admin_events_collapsed", eventsCollapsed ? "1" : "0"); } catch {} }, [eventsCollapsed]);
     useEffect(() => { try { localStorage.setItem("rt_admin_participants_collapsed", participantsCollapsed ? "1" : "0"); } catch {} }, [participantsCollapsed]);
     const prevStatusesRef = useRef({});
@@ -345,6 +349,13 @@ export default function AdminDashboard() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button onClick={() => setSettingsOpen(true)}
+                            type="button"
+                            title={t("common.settings")}
+                            data-testid="admin-settings-button"
+                            className="w-9 h-9 flex items-center justify-center border border-white/15 hover:bg-white/5 text-zinc-300 transition">
+                        <Settings className="w-4 h-4" />
+                    </button>
                     <button onClick={togglePush}
                             type="button"
                             title={pushOn ? "Notifications on — click to turn off" : "Enable push notifications"}
@@ -358,7 +369,7 @@ export default function AdminDashboard() {
                     <InstallAppButton className="hidden sm:inline-flex" />
                     <Button onClick={logout} variant="ghost" data-testid="logout-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">
-                        <LogOut className="w-4 h-4 mr-2" /> Logout
+                        <LogOut className="w-4 h-4 mr-2" /> {t("nav.logout")}
                     </Button>
                     <Button variant="ghost"
                             onClick={() => setConfirmAction({
@@ -392,7 +403,7 @@ export default function AdminDashboard() {
                                 data-testid="events-collapse-toggle"
                                 className="text-xs uppercase tracking-[0.25em] font-bold text-zinc-300 flex items-center gap-2 hover:text-white transition">
                             {eventsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                            <Calendar className="w-4 h-4" /> Events ({events.length})
+                            <Calendar className="w-4 h-4" /> {t("admin.eventsHeader", { count: events.length })}
                         </button>
                         <div className="flex items-center gap-2">
                             <button type="button"
@@ -560,7 +571,7 @@ export default function AdminDashboard() {
                                     participantsCollapsed ? "mb-0" : "mb-3"
                                 }`}>
                             {participantsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                            <Users className="w-4 h-4" /> Participants ({registrations.length})
+                            <Users className="w-4 h-4" /> {t("admin.participantsHeader", { count: registrations.length })}
                         </button>
                         {!participantsCollapsed && (
                         <div className="space-y-2 overflow-y-auto pr-1 flex-1" data-testid="participants-list">
@@ -848,6 +859,7 @@ export default function AdminDashboard() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <AdminSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         </div>
     );
 }

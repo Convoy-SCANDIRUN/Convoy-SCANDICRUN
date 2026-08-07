@@ -193,6 +193,7 @@ function GdprNotice() {
 }
 
 function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "" }) {
+    const { t } = useTranslation();
     const [code, setCode] = useState(prefillCode);
     const [event, setEvent] = useState(null);
     const [teamNumber, setTeamNumber] = useState("");
@@ -318,65 +319,65 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
                 <div className="flex items-center gap-3 mb-6">
                     <BrandLogo className="w-9 h-9" />
                     <div>
-                        <p className="font-display text-3xl font-black uppercase leading-none">Join Event</p>
-                        <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mt-1">Enter your event code</p>
+                        <p className="font-display text-3xl font-black uppercase leading-none">{t("participant.joinDialogTitle")}</p>
+                        <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mt-1">{t("participant.joinDialogHint")}</p>
                     </div>
                 </div>
 
                 {!event ? (
                     <div className="space-y-4">
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">Event code</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("participant.eventCode")}</Label>
                             <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
-                                   placeholder="6-CHAR CODE" data-testid="event-code-input"
+                                   placeholder={t("participant.joinDialogCodePlaceholder")} data-testid="event-code-input"
                                    className="bg-transparent border-white/20 rounded-none h-12 font-mono tracking-[0.4em] text-center text-lg" />
                         </div>
                         <Button onClick={lookup} data-testid="lookup-event-button"
                                 className="w-full rounded-none h-12 bg-[#007AFF] hover:bg-[#005bb5] uppercase tracking-[0.2em] font-bold">
-                            Find Event
+                            {t("participant.joinEventSubmit")}
                         </Button>
                         {onCancel && (
                             <Button type="button" variant="ghost" onClick={onCancel} data-testid="join-cancel-button"
                                     className="w-full rounded-none h-12 border border-white/15 hover:bg-white/5 uppercase tracking-[0.2em] text-xs">
-                                {hasJoinedEvents ? "Cancel" : "Sign out"}
+                                {hasJoinedEvents ? t("common.cancel") : t("nav.logout")}
                             </Button>
                         )}
                     </div>
                 ) : (
                     <form onSubmit={submit} className="space-y-4" data-testid="register-event-form">
                         <div className="p-3 border border-[#007AFF]/40 bg-[#007AFF]/5">
-                            <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">Event</p>
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">{t("participant.myEventsTitle")}</p>
                             <p className="font-display text-xl font-bold uppercase">{event.name}</p>
                             <p className="text-[11px] text-zinc-500">{event.start_date} → {event.end_date}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <Label className="text-xs uppercase tracking-[0.2em]">Team #</Label>
+                                <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.teamNumber")}</Label>
                                 <Input value={teamNumber} onChange={(e) => setTeamNumber(e.target.value)} required
                                        data-testid="team-number-input"
                                        className="bg-transparent border-white/20 rounded-none h-11" />
                             </div>
                             <div>
-                                <Label className="text-xs uppercase tracking-[0.2em]">Team name</Label>
+                                <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.teamName")}</Label>
                                 <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} required
                                        data-testid="team-name-input"
                                        className="bg-transparent border-white/20 rounded-none h-11" />
                             </div>
                             <div>
-                                <Label className="text-xs uppercase tracking-[0.2em]">First name</Label>
+                                <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.firstName")}</Label>
                                 <Input value={first} onChange={(e) => setFirst(e.target.value)} required
                                        data-testid="first-name-input"
                                        className="bg-transparent border-white/20 rounded-none h-11" />
                             </div>
                             <div>
-                                <Label className="text-xs uppercase tracking-[0.2em]">Last name</Label>
+                                <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.lastName")}</Label>
                                 <Input value={last} onChange={(e) => setLast(e.target.value)} required
                                        data-testid="last-name-input"
                                        className="bg-transparent border-white/20 rounded-none h-11" />
                             </div>
                         </div>
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">Profile picture</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("profile.photo")}</Label>
                             <Input type="file" accept="image/*" onChange={(e) => setPic(e.target.files?.[0] || null)}
                                    data-testid="profile-picture-input"
                                    className="bg-transparent border-white/20 rounded-none h-11 file:bg-white/10 file:text-white file:border-0 file:px-3 file:mr-3" />
@@ -393,9 +394,7 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
                                 className="mt-0.5 border-white/40 data-[state=checked]:bg-[#007AFF] data-[state=checked]:border-[#007AFF]"
                             />
                             <span className="text-[11px] text-zinc-300 leading-relaxed">
-                                I have read the data-protection notice above and consent to the processing
-                                of the listed personal data and my live location for this event, in
-                                accordance with GDPR (Regulation (EU) 2016/679).
+                                {t("participant.joinDialogGdpr")}
                             </span>
                         </label>
 
@@ -425,12 +424,12 @@ function JoinForm({ onJoined, onCancel, hasJoinedEvents = false, prefillCode = "
                         <div className="flex gap-3">
                             <Button type="button" variant="ghost" onClick={() => setEvent(null)}
                                     className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em] h-12">
-                                Back
+                                {t("common.back")}
                             </Button>
                             <Button type="submit" disabled={submitting || !gdpr || !locConsent}
                                     data-testid="register-event-submit"
                                     className="flex-1 rounded-none h-12 bg-[#007AFF] hover:bg-[#005bb5] uppercase tracking-[0.2em] font-bold disabled:opacity-50">
-                                <Plus className="w-4 h-4 mr-2" /> {submitting ? "Joining…" : "Join Convoy"}
+                                <Plus className="w-4 h-4 mr-2" /> {submitting ? t("common.loading") : t("participant.joinDialogSubmit")}
                             </Button>
                         </div>
                     </form>
@@ -1011,28 +1010,27 @@ export default function ParticipantDashboard() {
                                data-testid="help-dialog">
                     <DialogHeader>
                         <DialogTitle className="font-display text-2xl uppercase tracking-tight text-[#FFCC00]">
-                            Request Help
+                            {t("participant.helpTitle")}
                         </DialogTitle>
                         <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                            Tell other teams what happened
+                            {t("participant.helpDescription")}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">What happened?</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("participant.helpWhatHappened")}</Label>
                             <Textarea
                                 value={helpText}
                                 onChange={(e) => setHelpText(e.target.value)}
                                 rows={4}
-                                placeholder="Flat tire, lost the route, need fuel…"
+                                placeholder={t("participant.helpMessagePlaceholder")}
                                 data-testid="help-message-input"
                                 className="bg-transparent border-white/20 rounded-none mt-1 focus-visible:ring-[#FFCC00]"
                             />
                         </div>
                         <div className="border border-[#FFCC00]/40 bg-[#FFCC00]/5 p-3 text-[11px] text-[#FFCC00]"
                              data-testid="help-misuse-warning">
-                            ⚠ Misuse of this feature (false alerts, jokes, irrelevant calls) may lead to
-                            immediate exclusion from the event.
+                            {t("participant.helpMisuseWarning")}
                         </div>
                         <label className="flex items-start gap-3 cursor-pointer">
                             <Checkbox
@@ -1042,20 +1040,19 @@ export default function ParticipantDashboard() {
                                 className="mt-0.5 border-white/40 data-[state=checked]:bg-[#FFCC00] data-[state=checked]:border-[#FFCC00] data-[state=checked]:text-black"
                             />
                             <span className="text-[11px] text-zinc-300 leading-relaxed">
-                                I confirm this is a real situation that requires assistance and I understand
-                                that misuse may lead to exclusion from the event.
+                                {t("participant.helpAckLabel")}
                             </span>
                         </label>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setHelpOpen(false)} data-testid="help-cancel-button"
                                 className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={submitHelp} data-testid="help-confirm-button"
                                 disabled={!helpText.trim() || !helpAck}
                                 className="rounded-none bg-[#FFCC00] hover:bg-[#E6B800] text-black uppercase text-xs tracking-[0.2em] disabled:opacity-50">
-                            Send help request
+                            {t("participant.helpSend")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1067,10 +1064,10 @@ export default function ParticipantDashboard() {
                                data-testid="sos-dialog">
                     <DialogHeader>
                         <DialogTitle className="font-display text-3xl uppercase tracking-tight text-[#FF3B30]">
-                            Emergency Call
+                            {t("participant.sosTitleFull")}
                         </DialogTitle>
                         <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                            Event hotline
+                            {t("participant.sosDescription")}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
@@ -1080,33 +1077,31 @@ export default function ParticipantDashboard() {
                                 onClick={() => { callEmergency(); setSosOpen(false); }}
                                 data-testid="sos-phone-link"
                                 className="w-full block border border-[#FF3B30] bg-[#FF3B30]/10 p-4 text-center hover:bg-[#FF3B30]/20 transition cursor-pointer">
-                                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 mb-1">Tap to call</p>
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("participant.sosPhoneHint")}</p>
                                 <p className="font-display text-3xl font-black tracking-tight text-white break-all">
                                     {activeEvent.emergency_phone}
                                 </p>
                             </button>
                         ) : (
                             <div className="border border-white/20 p-4 text-sm text-zinc-300" data-testid="sos-no-phone">
-                                No emergency number is configured for this event. Please contact the event
-                                organiser directly or call your local emergency services.
+                                {t("participant.sosNoPhone")}
                             </div>
                         )}
                         <div className="border border-[#FF3B30]/40 bg-[#FF3B30]/5 p-3 text-[11px] text-[#FF3B30]"
                              data-testid="sos-cost-warning">
-                            ℹ Calling this number may incur charges according to your mobile-phone tariff.
-                            International calls may be especially expensive.
+                            {t("participant.sosGdpr")}
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setSosOpen(false)} data-testid="sos-cancel-button"
                                 className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         {activeEvent?.emergency_phone && (
                             <Button onClick={() => { callEmergency(); setSosOpen(false); }}
                                     data-testid="sos-call-button"
                                     className="rounded-none bg-[#FF3B30] hover:bg-[#D32F2F] text-white uppercase text-xs tracking-[0.2em]">
-                                <Phone className="w-3 h-3 mr-2" /> Call now
+                                <Phone className="w-3 h-3 mr-2" /> {t("participant.sosCallNow")}
                             </Button>
                         )}
                     </DialogFooter>
@@ -1122,10 +1117,10 @@ export default function ParticipantDashboard() {
                                data-testid="help-nav-dialog">
                     <DialogHeader>
                         <DialogTitle className="font-display text-2xl uppercase tracking-tight text-[#FFCC00] flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5" /> Help · Navigate
+                            <AlertTriangle className="w-5 h-5" /> {t("participant.helpNavTitle")}
                         </DialogTitle>
                         <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                            Team requesting assistance
+                            {t("participant.helpNavSubtitle")}
                         </DialogDescription>
                     </DialogHeader>
                     {helpNav?.reg && (() => {
@@ -1162,17 +1157,16 @@ export default function ParticipantDashboard() {
                                 )}
                                 <div className="grid grid-cols-2 gap-2" data-testid="help-nav-eta">
                                     <div className="border border-white/15 p-3">
-                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">Distance (approx)</p>
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">{t("participant.helpNavDistance")}</p>
                                         <p className="font-display text-2xl font-black">{km != null ? `${km.toFixed(1)} km` : "—"}</p>
                                     </div>
                                     <div className="border border-white/15 p-3">
-                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">Drive time (approx)</p>
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">{t("participant.helpNavDriveTime")}</p>
                                         <p className="font-display text-2xl font-black">{fmtMin(minutes)}</p>
                                     </div>
                                 </div>
                                 <p className="text-[10px] text-zinc-500 leading-relaxed">
-                                    Distance is straight-line, drive time assumes 60 km/h on average. Use the navigation
-                                    links below for a proper routed estimate.
+                                    {t("participant.helpNavDisclaimer")}
                                 </p>
                                 <div className="grid grid-cols-2 gap-2">
                                     <a href={gmaps} target="_blank" rel="noreferrer" data-testid="help-nav-google"
@@ -1195,7 +1189,7 @@ export default function ParticipantDashboard() {
                 <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-lg"
                                data-testid="participants-overview-dialog">
                     <DialogHeader>
-                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">Participants</DialogTitle>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("participant.overviewTitle")}</DialogTitle>
                         <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
                             {placedCount}/{registrations.length} live · {activeEvent?.name}
                         </DialogDescription>
@@ -1255,14 +1249,11 @@ export default function ParticipantDashboard() {
                 <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-lg"
                                data-testid="my-events-dialog">
                     <DialogHeader>
-                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">My Events</DialogTitle>
-                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                            Events you are registered to
-                        </DialogDescription>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("participant.myEventsTitle")}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1" data-testid="my-events-list">
                         {events.length === 0 && (
-                            <p className="text-xs text-zinc-500 italic">You're not registered to any event yet.</p>
+                            <p className="text-xs text-zinc-500 italic">{t("participant.myEventsEmpty")}</p>
                         )}
                         {events.map((e) => (
                             <div key={e.id}
@@ -1285,22 +1276,19 @@ export default function ParticipantDashboard() {
                                             <Button onClick={() => { setActiveEvent(e); setShowEventsPanel(false); }}
                                                     data-testid={`switch-event-${e.id}`}
                                                     className="h-8 rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-[10px] tracking-[0.2em]">
-                                                Switch
+                                                {t("participant.switchEvent")}
                                             </Button>
                                         )}
                                         <Button onClick={async () => {
-                                                    // The per-event "Download report" lives here on the Event Overview
-                                                    // so participants can grab a PDF for any event they've joined
-                                                    // without first switching to it as the active event.
                                                     const myRegForThisEvent = e.id === activeEvent?.id
                                                         ? myReg
                                                         : await api.get(`/events/${e.id}/my-registration`).then((r) => r.data).catch(() => null);
-                                                    if (!myRegForThisEvent?.id) { toast.error("No registration found for this event"); return; }
-                                                    const toastId = toast.loading("Building your report…");
+                                                    if (!myRegForThisEvent?.id) { toast.error(t("errors.generic")); return; }
+                                                    const toastId = toast.loading(t("participant.buildingReport"));
                                                     try {
                                                         const { data } = await api.get(`/registrations/${myRegForThisEvent.id}/summary`);
                                                         await buildParticipantPdf(data);
-                                                        toast.success("Report downloaded", { id: toastId });
+                                                        toast.success(t("participant.reportDownloaded"), { id: toastId });
                                                     } catch (err) {
                                                         toast.error(formatApiError(err), { id: toastId });
                                                     }
@@ -1308,12 +1296,12 @@ export default function ParticipantDashboard() {
                                                 data-testid={`download-event-report-${e.id}`}
                                                 variant="ghost"
                                                 className="h-8 rounded-none border border-white/20 hover:bg-white/10 uppercase text-[10px] tracking-[0.2em]">
-                                            <FileDown className="w-3 h-3 mr-1" /> Report
+                                            <FileDown className="w-3 h-3 mr-1" /> {t("participant.downloadReport")}
                                         </Button>
                                         <Button onClick={() => leaveEvent(e)} variant="ghost"
                                                 data-testid={`leave-event-${e.id}`}
                                                 className="h-8 rounded-none border border-[#FF3B30]/50 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] tracking-[0.2em]">
-                                            Leave
+                                            {t("participant.leaveEvent")}
                                         </Button>
                                     </div>
                                 </div>

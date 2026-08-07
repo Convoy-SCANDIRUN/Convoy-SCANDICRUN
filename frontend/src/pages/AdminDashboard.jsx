@@ -22,6 +22,7 @@ import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldA
 import { QRCodeCanvas } from "qrcode.react";
 
 function EditEventDialog({ event, onClose, onSaved }) {
+    const { t } = useTranslation();
     const [name, setName] = useState("");
     const [start, setStart] = useState("");
     const [end, setEnd] = useState("");
@@ -67,58 +68,55 @@ function EditEventDialog({ event, onClose, onSaved }) {
         <Dialog open={!!event} onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white" data-testid="edit-event-dialog">
                 <DialogHeader>
-                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">Edit Event</DialogTitle>
-                    <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                        Update name, dates, emergency phone or cover image.
-                    </DialogDescription>
+                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("admin.editEvent")}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={submit} className="space-y-4" data-testid="edit-event-form">
                     <div>
-                        <Label className="text-xs uppercase tracking-[0.2em]">Name</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.eventName")}</Label>
                         <Input value={name} onChange={(e) => setName(e.target.value)} required
                                data-testid="edit-event-name-input"
                                className="bg-transparent rounded-none border-white/20 h-11" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">Start</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.startDate")}</Label>
                             <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} required
                                    data-testid="edit-event-start-input"
                                    className="bg-transparent rounded-none border-white/20 h-11" />
                         </div>
                         <div>
-                            <Label className="text-xs uppercase tracking-[0.2em]">End</Label>
+                            <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.endDate")}</Label>
                             <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} required
                                    data-testid="edit-event-end-input"
                                    className="bg-transparent rounded-none border-white/20 h-11" />
                         </div>
                     </div>
                     <div>
-                        <Label className="text-xs uppercase tracking-[0.2em]">Emergency phone</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.emergencyPhone")}</Label>
                         <Input type="tel" value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)}
                                data-testid="edit-event-emergency-phone-input"
                                className="bg-transparent rounded-none border-white/20 h-11" />
                     </div>
                     <div>
-                        <Label className="text-xs uppercase tracking-[0.2em]">Replace cover image (optional)</Label>
+                        <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.eventCoverImage")}</Label>
                         <Input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)}
                                data-testid="edit-event-image-input"
                                className="bg-transparent rounded-none border-white/20 h-11 file:bg-white/10 file:text-white file:border-0 file:px-3 file:mr-3" />
                         {event?.image_path && !image && (
                             <div className="mt-2 flex items-center gap-2">
                                 <img src={fileUrl(event.image_path)} alt="" className="w-12 h-12 rounded object-cover border border-white/20" />
-                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider">current cover</span>
+                                <span className="text-[10px] text-zinc-400 uppercase tracking-wider">{t("profile.currentPhoto")}</span>
                             </div>
                         )}
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
                         <Button type="button" variant="ghost" onClick={onClose}
                                 className="rounded-none border border-white/15 uppercase text-xs tracking-[0.2em]">
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button type="submit" disabled={submitting} data-testid="edit-event-save"
                                 className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em]">
-                            {submitting ? "Saving…" : "Save changes"}
+                            {submitting ? t("common.saving") : t("admin.saveEventSubmit")}
                         </Button>
                     </div>
                 </form>
@@ -420,39 +418,36 @@ export default function AdminDashboard() {
                             <DialogTrigger asChild>
                                 <Button data-testid="create-event-button"
                                         className="h-8 rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-[10px] tracking-[0.2em]">
-                                    <Plus className="w-3 h-3 mr-1" /> New
+                                    <Plus className="w-3 h-3 mr-1" /> {t("admin.newEvent")}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white">
                                 <DialogHeader>
-                                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">Create Event</DialogTitle>
-                                    <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                                        Set up a new road trip and share its code.
-                                    </DialogDescription>
+                                    <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("admin.newEvent")}</DialogTitle>
                                 </DialogHeader>
                                 <form onSubmit={submitEvent} className="space-y-4" data-testid="create-event-form">
                                     <div>
-                                        <Label className="text-xs uppercase tracking-[0.2em]">Name</Label>
+                                        <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.eventName")}</Label>
                                         <Input value={name} onChange={(e) => setName(e.target.value)} required
                                                data-testid="event-name-input"
                                                className="bg-transparent rounded-none border-white/20 h-11" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <Label className="text-xs uppercase tracking-[0.2em]">Start</Label>
+                                            <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.startDate")}</Label>
                                             <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} required
                                                    data-testid="event-start-input"
                                                    className="bg-transparent rounded-none border-white/20 h-11" />
                                         </div>
                                         <div>
-                                            <Label className="text-xs uppercase tracking-[0.2em]">End</Label>
+                                            <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.endDate")}</Label>
                                             <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} required
                                                    data-testid="event-end-input"
                                                    className="bg-transparent rounded-none border-white/20 h-11" />
                                         </div>
                                     </div>
                                     <div>
-                                        <Label className="text-xs uppercase tracking-[0.2em]">Emergency phone</Label>
+                                        <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.emergencyPhone")}</Label>
                                         <Input
                                             type="tel"
                                             value={emergencyPhone}
@@ -463,18 +458,18 @@ export default function AdminDashboard() {
                                             className="bg-transparent rounded-none border-white/20 h-11"
                                         />
                                         <p className="text-[10px] text-zinc-500 mt-1">
-                                            Shown on participant SOS screen — must be reachable during the event.
+                                            {t("admin.emergencyPhoneHint")}
                                         </p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs uppercase tracking-[0.2em]">Cover image</Label>
+                                        <Label className="text-xs uppercase tracking-[0.2em]">{t("admin.eventCoverImage")}</Label>
                                         <Input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)}
                                                data-testid="event-image-input"
                                                className="bg-transparent rounded-none border-white/20 h-11 file:bg-white/10 file:text-white file:border-0 file:px-3 file:mr-3 file:rounded-none" />
                                     </div>
                                     <Button disabled={creating} type="submit" data-testid="event-submit-button"
                                             className="w-full rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase tracking-[0.2em] h-12">
-                                        {creating ? "Creating…" : "Create"}
+                                        {creating ? t("common.loading") : t("admin.createEventSubmit")}
                                     </Button>
                                 </form>
                             </DialogContent>
@@ -671,15 +666,12 @@ export default function AdminDashboard() {
             <Dialog open={!!shareEvent} onOpenChange={(o) => !o && setShareEvent(null)}>
                 <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md" data-testid="share-dialog">
                     <DialogHeader>
-                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">Share Event</DialogTitle>
-                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                            Teams scan the code or open the link to join.
-                        </DialogDescription>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("admin.shareTitle")}</DialogTitle>
                     </DialogHeader>
                     {shareEvent && (
                         <div className="space-y-5">
                             <div className="text-center">
-                                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Event Code</p>
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-1">{t("admin.shareCode")}</p>
                                 <p className="font-display text-5xl font-black tracking-[0.3em] text-[#007AFF]" data-testid="share-event-code">
                                     {shareEvent.code}
                                 </p>
@@ -696,18 +688,19 @@ export default function AdminDashboard() {
                             <div className="flex items-center gap-2 border border-white/15 px-3 py-2">
                                 <code className="text-xs text-zinc-300 truncate flex-1" data-testid="share-url">{shareUrl}</code>
                                 <button onClick={copyShareUrl} data-testid="copy-share-url"
-                                        className="text-zinc-400 hover:text-white p-1">
+                                        className="text-zinc-400 hover:text-white p-1"
+                                        title={t("admin.shareUrl")}>
                                     <Copy className="w-4 h-4" />
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <Button onClick={copyShareUrl} variant="ghost" data-testid="copy-link-button"
                                         className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em] h-11">
-                                    <Copy className="w-3 h-3 mr-2" /> Copy Link
+                                    <Copy className="w-3 h-3 mr-2" /> {t("admin.shareUrl")}
                                 </Button>
                                 <Button onClick={printPoster} data-testid="print-poster-button"
                                         className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em] h-11">
-                                    <Printer className="w-3 h-3 mr-2" /> Print Poster
+                                    <Printer className="w-3 h-3 mr-2" /> {t("admin.sharePrint")}
                                 </Button>
                             </div>
                         </div>
@@ -721,10 +714,10 @@ export default function AdminDashboard() {
                                data-testid="sos-dispatch-dialog">
                     <DialogHeader>
                         <DialogTitle className="font-display text-3xl uppercase tracking-tight text-[#FF3B30] flex items-center gap-2">
-                            <ShieldAlert className="w-7 h-7 animate-pulse" /> SOS · Dispatch
+                            <ShieldAlert className="w-7 h-7 animate-pulse" /> {t("admin.dispatchTitle")}
                         </DialogTitle>
                         <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                            Team requesting emergency assistance
+                            {t("admin.dispatchSubtitle")}
                         </DialogDescription>
                     </DialogHeader>
                     {sosAlert?.reg && (() => {
@@ -754,7 +747,7 @@ export default function AdminDashboard() {
 
                                 <div className="border border-white/15 p-3 space-y-1.5" data-testid="sos-position-info">
                                     <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-zinc-400">
-                                        Last known position
+                                        {t("admin.dispatchLastPosition")}
                                     </p>
                                     {hasPos ? (
                                         <>
@@ -775,7 +768,7 @@ export default function AdminDashboard() {
                                 {r.help_message && (
                                     <div className="border-l-2 border-[#FF3B30] pl-3" data-testid="sos-message">
                                         <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-zinc-400 mb-1">
-                                            Team note
+                                            {t("participant.helpNavTeamNote")}
                                         </p>
                                         <p className="text-sm text-zinc-200 italic">“{r.help_message}”</p>
                                     </div>
@@ -802,12 +795,12 @@ export default function AdminDashboard() {
                                         setSosAlert(null);
                                     }} data-testid="sos-mark-resolved"
                                             className="flex-1 rounded-none bg-[#34C759] hover:bg-[#2BA64B] text-white uppercase text-[11px] tracking-[0.2em]">
-                                        Mark resolved
+                                        {t("admin.dispatchClear")}
                                     </Button>
                                     <Button variant="ghost" onClick={() => setSosAlert(null)}
                                             data-testid="sos-dismiss"
                                             className="rounded-none border border-white/15 uppercase text-[11px] tracking-[0.2em]">
-                                        Dismiss
+                                        {t("admin.dispatchDismiss")}
                                     </Button>
                                 </div>
                             </div>

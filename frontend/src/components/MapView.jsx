@@ -5,6 +5,23 @@ import { useTranslation } from "react-i18next";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { Crosshair, Locate, Plus, Minus } from "lucide-react";
 
+/** Human-readable "N minutes ago" style label with fallbacks for missing /
+ *  future timestamps. Localised via i18n keys `map.updated*`. */
+function formatRelative(iso, t) {
+    if (!iso) return t("map.updatedNever");
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return t("map.updatedNever");
+    const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+    if (diffSec < 30) return t("map.updatedJustNow");
+    if (diffSec < 60) return t("map.updatedSecs", { count: diffSec });
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return t("map.updatedMins", { count: diffMin });
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return t("map.updatedHours", { count: diffH });
+    const diffD = Math.floor(diffH / 24);
+    return t("map.updatedDays", { count: diffD });
+}
+
 const DEFAULT_CENTER = [48.8566, 2.3522]; // Paris fallback
 const DEFAULT_ZOOM = 5;
 const FOCUS_ZOOM = 14;
@@ -89,7 +106,8 @@ function MapController({ selfPosition, allPoints, fitNonce, defaultMode = "self"
     return null;
 }
 
-export default function MapView({ registrations = [], height = "100%", hideSos = false, selfId = null, focusTarget = null }) {
+export default function MapView({ registrations = [], height = "100%", hideSos = false, selfId = null, focusTarget = null,
+                                  countdown = null, countdownLabel = "", countdownUnits = null }) {
     const { t } = useTranslation();
     const placed = useMemo(
         () => registrations.filter((r) => r.lat != null && r.lng != null),
@@ -182,6 +200,9 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                                 <div className="rt-popup-inner" data-testid={`marker-popup-${r.id}`}>
                                     <p className="rt-popup-title">T{r.team_number} · {r.team_name}</p>
                                     <p className="rt-popup-sub">{r.first_name} {r.last_name}{isSelf ? " (you)" : ""}</p>
+                                    <p className="rt-popup-time" data-testid={`marker-last-update-${r.id}`}>
+                                        {formatRelative(r.last_update, t)}
+                                    </p>
                                     {r.help_status === "help" && r.help_message && (
                                         <p className="rt-popup-help">⚠ {r.help_message}</p>
                                     )}
@@ -253,6 +274,32 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     <span className="text-[10px] uppercase tracking-wider font-bold">{t("map.all")}</span>
                 </button>
             </div>
+
+            {/* Countdown watermark — shown when the participant has joined
+                an event that hasn't started yet. Non-interactive (pointer-events:
+                none) so it never blocks map gestures. z-[600] keeps it above
+                Leaflet's overlay panes (default zIndex 400) and our own map
+                controls (z-[400]). */}
+            {countdown && countdownUnits && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[600]"
+                     data-testid="event-countdown-watermark">
+                    <div className="bg-black/55 backdrop-blur-md border border-white/15 px-4 sm:px-8 py-3 sm:py-5 text-center shadow-2xl">
+                        <p className="text-[10px] sm:text-xs uppercase tracking-[0.35em] text-[#FFCC00] font-bold mb-2">
+                            {countdownLabel}
+                        </p>
+                        <p className="font-display text-2xl sm:text-4xl font-black text-white tabular-nums leading-none">
+                            <span data-testid="countdown-days">{countdown.days}</span>
+                            <span className="text-[#FFCC00] text-sm sm:text-lg mx-1">{countdownUnits.d}</span>
+                            <span data-testid="countdown-hours">{String(countdown.hours).padStart(2, "0")}</span>
+                            <span className="text-[#FFCC00] text-sm sm:text-lg mx-1">{countdownUnits.h}</span>
+                            <span data-testid="countdown-minutes">{String(countdown.minutes).padStart(2, "0")}</span>
+                            <span className="text-[#FFCC00] text-sm sm:text-lg mx-1">{countdownUnits.m}</span>
+                            <span data-testid="countdown-seconds">{String(countdown.seconds).padStart(2, "0")}</span>
+                            <span className="text-[#FFCC00] text-sm sm:text-lg ml-1">{countdownUnits.s}</span>
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

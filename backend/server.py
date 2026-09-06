@@ -111,6 +111,10 @@ class LocationIn(BaseModel):
     lat: float
     lng: float
 
+class ShareWindowIn(BaseModel):
+    share_before: Optional[bool] = None
+    share_after: Optional[bool] = None
+
 class HelpIn(BaseModel):
     status: str  # "help", "sos", "clear"
     message: Optional[str] = None
@@ -431,6 +435,8 @@ async def register_participant(
         "lat": None,
         "lng": None,
         "help_status": "normal",  # normal / help / sos
+        "share_before": False,  # opt-in: share up to 24h before event start
+        "share_after": False,   # opt-in: share up to 24h after event end
         "last_update": datetime.now(timezone.utc).isoformat(),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -505,6 +511,27 @@ async def update_location(reg_id: str, body: LocationIn, user: dict = Depends(ge
     reg = await db.registrations.find_one({"id": reg_id})
     if not reg or reg["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Registration not found")
+    # Enforce location-sharing timeframe: only during the event, extended by
+    # up to 24h before/after when the participant has explicitly opted in.
+    event = await db.events.find_one({"id": reg["event_id"]}, {"_id": 0})
+    if event:
+        try:
+            start_dt = datetime.fromisoformat(f"{event['start_date']}T00:00:00+00:00")
+            end_dt = datetime.fromisoformat(f"{event['end_date']}T23:59:59+00:00")
+        except Exception:
+            start_dt = end_dt = None
+        if start_dt and end_dt:
+            if reg.get("share_before"):
+                start_dt = start_dt - timedelta(hours=24)
+            if reg.get("share_after"):
+                end_dt = end_dt + timedelta(hours=24)
+            now = datetime.now(timezone.utc)
+            if now < start_dt or now > end_dt:
+                raise HTTPException(status_code=403, detail={
+                    "code": "outside_share_window",
+                    "starts_at": start_dt.isoformat(),
+                    "ends_at": end_dt.isoformat(),
+                })
     now_iso = datetime.now(timezone.utc).isoformat()
     await db.registrations.update_one(
         {"id": reg_id},
@@ -522,6 +549,24 @@ async def update_location(reg_id: str, body: LocationIn, user: dict = Depends(ge
         "ts": now_iso,
     })
     return {"ok": True}
+
+@api_router.patch("/registrations/{reg_id}/share-window")
+async def update_share_window(reg_id: str, body: ShareWindowIn, user: dict = Depends(get_current_user)):
+    """Toggle a participant's opt-in to share their location before/after the
+    event window (up to 24h on either side). Anything outside these bounds is
+    rejected by /location so location is never leaked outside the event."""
+    reg = await db.registrations.find_one({"id": reg_id})
+    if not reg or reg["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Registration not found")
+    update: dict = {}
+    if body.share_before is not None:
+        update["share_before"] = bool(body.share_before)
+    if body.share_after is not None:
+        update["share_after"] = bool(body.share_after)
+    if update:
+        await db.registrations.update_one({"id": reg_id}, {"$set": update})
+    fresh = await db.registrations.find_one({"id": reg_id}, {"_id": 0})
+    return fresh
 
 @api_router.post("/registrations/{reg_id}/help")
 async def update_help(reg_id: str, body: HelpIn, user: dict = Depends(get_current_user)):

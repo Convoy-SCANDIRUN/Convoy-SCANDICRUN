@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -29,7 +30,7 @@ import { useTranslation } from "react-i18next";
 
 const LOCATION_INTERVAL_MS = 15_000;
 
-function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
+function EditProfileDialog({ open, onOpenChange, myReg, onSaved, onDeleteAccount, onLogout, hasActiveReg }) {
     const { t } = useTranslation();
     const [teamNumber, setTeamNumber] = useState("");
     const [teamName, setTeamName] = useState("");
@@ -132,6 +133,20 @@ function EditProfileDialog({ open, onOpenChange, myReg, onSaved }) {
 
                     <div className="border-t border-white/10 pt-4" data-testid="language-section">
                         <LanguagePicker />
+                    </div>
+
+                    <div className="border-t border-[#FF3B30]/30 pt-4 space-y-2" data-testid="danger-zone-section">
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-[#FF3B30] font-bold">{t("profile.dangerZone")}</p>
+                        <Button type="button" onClick={onLogout} variant="ghost"
+                                data-testid="profile-logout-button"
+                                className="w-full rounded-none border border-white/20 hover:bg-white/10 uppercase text-xs tracking-[0.2em] h-11">
+                            <LogOut className="w-4 h-4 mr-2" /> {t("nav.logout")}
+                        </Button>
+                        <Button type="button" onClick={onDeleteAccount} variant="ghost"
+                                data-testid="delete-account-button"
+                                className="w-full rounded-none border border-[#FF3B30]/50 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em] h-11">
+                            <Trash2 className="w-4 h-4 mr-2" /> {t("profile.deleteAccount")}
+                        </Button>
                     </div>
 
                     <DialogFooter>
@@ -455,8 +470,9 @@ export default function ParticipantDashboard() {
     const [confirmAction, setConfirmAction] = useState(null);
     const [showParticipantsList, setShowParticipantsList] = useState(false);
     const [editProfileOpen, setEditProfileOpen] = useState(false);
+    const [showEventDetails, setShowEventDetails] = useState(false);
     const [focusTarget, setFocusTarget] = useState(null);
-    const [helpNav, setHelpNav] = useState(null); // { reg } — opens nav dialog for a help-requesting team
+    const [helpNav, setHelpNav] = useState(null);
 
     /** Great-circle distance in km between two lat/lng pairs. Used for the
      *  "approx" ETA shown when tapping a help notification — straight-line
@@ -518,6 +534,67 @@ export default function ParticipantDashboard() {
             return end.getTime() < Date.now();
         } catch { return false; }
     })();
+
+    // Ticks every second so the countdown watermark and share-window gating
+    // update in real time without waiting for a re-render from other state.
+    const [nowTick, setNowTick] = useState(Date.now());
+    useEffect(() => {
+        const t = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    /** Compute the (start, end) datetimes during which this participant is
+     *  allowed to share their location. Default is the event window; the
+     *  bounds extend by up to 24 h on either side when the participant has
+     *  opted in via `share_before` / `share_after`. */
+    const shareWindow = useMemo(() => {
+        if (!activeEvent?.start_date || !activeEvent?.end_date) return null;
+        try {
+            const start = new Date(`${activeEvent.start_date}T00:00:00Z`);
+            const end = new Date(`${activeEvent.end_date}T23:59:59Z`);
+            const shareStart = myReg?.share_before
+                ? new Date(start.getTime() - 24 * 3600 * 1000)
+                : start;
+            const shareEnd = myReg?.share_after
+                ? new Date(end.getTime() + 24 * 3600 * 1000)
+                : end;
+            return {
+                eventStart: start,
+                eventEnd: end,
+                shareStart,
+                shareEnd,
+            };
+        } catch { return null; }
+    }, [activeEvent?.start_date, activeEvent?.end_date, myReg?.share_before, myReg?.share_after]);
+
+    // Location-sharing status derived from the current clock tick.
+    const sharingStatus = useMemo(() => {
+        if (!shareWindow) return { active: false, reason: "no-event" };
+        const now = nowTick;
+        if (now < shareWindow.shareStart.getTime()) return { active: false, reason: "before-window" };
+        if (now > shareWindow.shareEnd.getTime()) return { active: false, reason: "after-window" };
+        return { active: true, reason: "in-window" };
+    }, [shareWindow, nowTick]);
+
+    // Countdown to event start — surfaced as a watermark on the map when the
+    // participant has joined but the event hasn't officially started yet.
+    const countdown = useMemo(() => {
+        if (!shareWindow) return null;
+        const diff = shareWindow.eventStart.getTime() - nowTick;
+        if (diff <= 0) return null;
+        const totalSec = Math.floor(diff / 1000);
+        return {
+            days: Math.floor(totalSec / 86400),
+            hours: Math.floor((totalSec % 86400) / 3600),
+            minutes: Math.floor((totalSec % 3600) / 60),
+            seconds: totalSec % 60,
+        };
+    }, [shareWindow, nowTick]);
+
+    // Ref that mirrors sharingStatus so long-lived callbacks (watchPosition,
+    // service worker) always see the current allow/deny state.
+    const sharingStatusRef = useRef(sharingStatus);
+    useEffect(() => { sharingStatusRef.current = sharingStatus; }, [sharingStatus]);
 
     const loadMyReg = async () => {
         if (!activeEvent) return;
@@ -590,6 +667,18 @@ export default function ParticipantDashboard() {
             if (!silent) toast.error("Not registered to an event");
             return;
         }
+        // Silent gate: don't attempt to share location outside the allowed
+        // event window (extended by any 24h opt-ins). This mirrors the
+        // backend enforcement so we don't spam the API with 403s.
+        if (!sharingStatus.active) {
+            if (!silent) {
+                const key = sharingStatus.reason === "before-window"
+                    ? "participant.countdownTitle"
+                    : "participant.shareOutsideWindow";
+                toast.info(t(key));
+            }
+            return;
+        }
         if (!navigator.geolocation) {
             setGeoState({ status: "error", error: "Geolocation unsupported", lastAt: null });
             if (!silent) toast.error("Your browser does not support geolocation");
@@ -653,6 +742,9 @@ export default function ParticipantDashboard() {
         if (navigator.geolocation && navigator.geolocation.watchPosition) {
             watchId = navigator.geolocation.watchPosition(
                 async (pos) => {
+                    // Respect the participant's share window at push time so
+                    // watchPosition doesn't leak coordinates outside of it.
+                    if (!sharingStatusRef.current?.active) return;
                     try {
                         await api.post(`/registrations/${myReg.id}/location`, {
                             lat: pos.coords.latitude, lng: pos.coords.longitude,
@@ -852,33 +944,17 @@ export default function ParticipantDashboard() {
                             title={t("nav.profile")}>
                         <UserCog className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.profile")}</span>
                     </Button>
-                    <Button variant="ghost" onClick={() => setShowEventsPanel(true)} data-testid="my-events-button"
+                    <Button variant="ghost" onClick={() => setShowEventDetails(true)} data-testid="event-details-button"
+                            disabled={!activeEvent}
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <ListChecks className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.myEvents")}</span>
+                        <Calendar className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{activeEvent?.name || t("participant.myEventsTitle")}</span>
                     </Button>
-                    <Button variant="ghost" onClick={() => setShowJoin(true)} data-testid="join-other-event-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <Plus className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("participant.joinEvent")}</span>
-                    </Button>
-                    <Button variant="ghost" onClick={logout} data-testid="logout-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <LogOut className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.logout")}</span>
-                    </Button>
-                    <Button variant="ghost"
-                            onClick={() => setConfirmAction({
-                                title: t("profile.deleteAccountConfirm"),
-                                description: t("profile.deleteAccountBody"),
-                                confirmLabel: t("profile.deleteAccount"),
-                                destructive: true,
-                                run: async () => {
-                                    try { await deleteAccount(); toast.success(t("common.success")); }
-                                    catch (err) { toast.error(formatApiError(err)); }
-                                },
-                            })}
-                            data-testid="delete-account-button"
-                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2">
-                        <Trash2 className="w-3 h-3" />
-                    </Button>
+                    {!myReg && (
+                        <Button variant="ghost" onClick={() => setShowJoin(true)} data-testid="join-other-event-button"
+                                className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
+                            <Plus className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("participant.joinEvent")}</span>
+                        </Button>
+                    )}
                 </div>
             </header>
 
@@ -891,7 +967,14 @@ export default function ParticipantDashboard() {
 
             {/* Map — leave room for fixed top + bottom bars */}
             <div className={`absolute inset-0 ${eventEnded ? "pt-[92px] sm:pt-[104px]" : "pt-[60px] sm:pt-[72px]"} pb-[160px] sm:pb-[180px] pwa-map-pad-bottom`}>
-                <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} focusTarget={focusTarget} />
+                <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} focusTarget={focusTarget}
+                         countdown={countdown} countdownLabel={t("participant.countdownTitle")}
+                         countdownUnits={{
+                             d: t("participant.countdownDays"),
+                             h: t("participant.countdownHours"),
+                             m: t("participant.countdownMinutes"),
+                             s: t("participant.countdownSeconds"),
+                         }} />
             </div>
 
             {/* Live count + geolocation status — bottom-left, just above the help/SOS bar */}
@@ -1298,11 +1381,6 @@ export default function ParticipantDashboard() {
                                                 className="h-8 rounded-none border border-white/20 hover:bg-white/10 uppercase text-[10px] tracking-[0.2em]">
                                             <FileDown className="w-3 h-3 mr-1" /> {t("participant.downloadReport")}
                                         </Button>
-                                        <Button onClick={() => leaveEvent(e)} variant="ghost"
-                                                data-testid={`leave-event-${e.id}`}
-                                                className="h-8 rounded-none border border-[#FF3B30]/50 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-[10px] tracking-[0.2em]">
-                                            {t("participant.leaveEvent")}
-                                        </Button>
                                     </div>
                                 </div>
                             </div>
@@ -1317,7 +1395,136 @@ export default function ParticipantDashboard() {
                 onOpenChange={setEditProfileOpen}
                 myReg={myReg}
                 onSaved={(updated) => { setMyReg(updated); loadRegs(); }}
+                onLogout={() => { setEditProfileOpen(false); logout(); }}
+                onDeleteAccount={() => {
+                    setEditProfileOpen(false);
+                    setConfirmAction({
+                        title: t("profile.deleteAccountConfirm"),
+                        description: t("profile.deleteAccountBody"),
+                        confirmLabel: t("profile.deleteAccount"),
+                        destructive: true,
+                        run: async () => {
+                            try { await deleteAccount(); toast.success(t("common.success")); }
+                            catch (err) { toast.error(formatApiError(err)); }
+                        },
+                    });
+                }}
             />
+
+            {/* Event details modal — opened by tapping the event name in the topbar */}
+            <Dialog open={showEventDetails} onOpenChange={setShowEventDetails}>
+                <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md max-h-[90vh] overflow-y-auto"
+                               data-testid="event-details-dialog">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">{activeEvent?.name}</DialogTitle>
+                        <DialogDescription className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+                            {t("participant.eventDetailsTitle")}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {activeEvent && (
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="border border-white/15 p-3">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">{t("admin.startDate")}</p>
+                                    <p className="font-display text-lg font-bold">{activeEvent.start_date}</p>
+                                </div>
+                                <div className="border border-white/15 p-3">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">{t("admin.endDate")}</p>
+                                    <p className="font-display text-lg font-bold">{activeEvent.end_date}</p>
+                                </div>
+                                <div className="border border-white/15 p-3">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">{t("participant.eventDetailsParticipants")}</p>
+                                    <p className="font-display text-lg font-bold" data-testid="event-details-participant-count">{registrations.length}</p>
+                                </div>
+                                {activeEvent.emergency_phone && (
+                                    <div className="border border-white/15 p-3">
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 mb-1">{t("admin.emergencyPhone")}</p>
+                                        <a href={`tel:${activeEvent.emergency_phone.replace(/\s+/g, '')}`}
+                                           className="font-display text-lg font-bold text-[#FF3B30] break-all">
+                                            {activeEvent.emergency_phone}
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Live sharing-window status — makes it clear when the
+                                participant's location is actually being shared. */}
+                            {sharingStatus.active ? (
+                                <div className="border-l-2 border-[#34C759] bg-[#34C759]/10 p-3 text-[11px] text-[#34C759]"
+                                     data-testid="share-status-live">
+                                    {t("participant.countdownLive")}
+                                </div>
+                            ) : sharingStatus.reason === "before-window" && countdown ? (
+                                <div className="border-l-2 border-[#FFCC00] bg-[#FFCC00]/10 p-3"
+                                     data-testid="share-status-before">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-[#FFCC00] font-bold mb-1">
+                                        {t("participant.countdownTitle")}
+                                    </p>
+                                    <p className="font-display text-lg font-black tabular-nums text-white">
+                                        {countdown.days}{t("participant.countdownDays")} {String(countdown.hours).padStart(2, "0")}{t("participant.countdownHours")} {String(countdown.minutes).padStart(2, "0")}{t("participant.countdownMinutes")} {String(countdown.seconds).padStart(2, "0")}{t("participant.countdownSeconds")}
+                                    </p>
+                                </div>
+                            ) : sharingStatus.reason === "after-window" ? (
+                                <div className="border-l-2 border-zinc-500 bg-white/5 p-3 text-[11px] text-zinc-400"
+                                     data-testid="share-status-after">
+                                    {t("participant.countdownEnded")}
+                                </div>
+                            ) : null}
+
+                            {/* Sharing-window opt-ins */}
+                            {myReg && (
+                                <div className="border border-white/15 p-3 space-y-3" data-testid="share-window-section">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-bold">
+                                            {t("participant.shareWindowHeader")}
+                                        </p>
+                                        <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">
+                                            {t("participant.shareWindowHint")}
+                                        </p>
+                                    </div>
+                                    <label className="flex items-center justify-between gap-3 cursor-pointer">
+                                        <span className="text-xs text-zinc-200 leading-tight">{t("participant.shareBeforeLabel")}</span>
+                                        <Switch
+                                            checked={!!myReg.share_before}
+                                            onCheckedChange={async (v) => {
+                                                try {
+                                                    const { data } = await api.patch(`/registrations/${myReg.id}/share-window`, { share_before: v });
+                                                    setMyReg(data);
+                                                    toast.success(t("participant.shareWindowSaved"));
+                                                } catch (err) { toast.error(formatApiError(err)); }
+                                            }}
+                                            data-testid="share-before-toggle"
+                                        />
+                                    </label>
+                                    <label className="flex items-center justify-between gap-3 cursor-pointer">
+                                        <span className="text-xs text-zinc-200 leading-tight">{t("participant.shareAfterLabel")}</span>
+                                        <Switch
+                                            checked={!!myReg.share_after}
+                                            onCheckedChange={async (v) => {
+                                                try {
+                                                    const { data } = await api.patch(`/registrations/${myReg.id}/share-window`, { share_after: v });
+                                                    setMyReg(data);
+                                                    toast.success(t("participant.shareWindowSaved"));
+                                                } catch (err) { toast.error(formatApiError(err)); }
+                                            }}
+                                            data-testid="share-after-toggle"
+                                        />
+                                    </label>
+                                </div>
+                            )}
+
+                            {myReg && (
+                                <Button onClick={() => { setShowEventDetails(false); leaveEvent(activeEvent); }}
+                                        variant="ghost"
+                                        data-testid="event-details-leave-button"
+                                        className="w-full rounded-none border border-[#FF3B30]/50 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em] h-11 mt-2">
+                                    <LogOut className="w-4 h-4 mr-2" /> {t("participant.leaveEvent")}
+                                </Button>
+                            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Confirm-action AlertDialog */}
             <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>

@@ -1,0 +1,55 @@
+{
+  "summary": "Frontend-only regression testing of Admin dashboard responsive topbar/sidebar, Leaflet map zoom, and participant dashboard regression. All requested features verified working correctly on desktop (1920x800) and mobile (390x844).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Map (both admin & participant)", "issues": ["Leaflet tiles show 'API KEY REQUIRED' watermark from carto.com/basemaps/apikey — a tile-provider API key is missing. Not part of this test scope, but flagged as a visible design issue that impacts the map experience."]}
+    ]
+  },
+  "test_verification_details": {
+    "desktop_admin_1920x800": {
+      "topbar_fixed_and_compact": true,
+      "topbar_buttons_present": ["admin-settings-button", "admin-notifications-toggle", "install-app-button (hidden sm:inline-flex)", "logout-button", "delete-account-button"],
+      "sidebar_persistent_visible": true,
+      "sidebar_bounding_box": "x=16 y=88 w=360 h=696",
+      "admin-sidebar-toggle_hidden_on_desktop": true,
+      "map_zoom_in_button": "present and functional (36 tiles rendered after zoom-in)",
+      "map_zoom_out_button": "present and functional",
+      "visualViewport_scale_after_zoom": 1,
+      "team_prefix_uses_hash": "verified (#123 · Winner, #1018 · Dreimaster, #808 · The Scandics, #3 · Test 3)"
+    },
+    "mobile_admin_390x844": {
+      "admin-sidebar-toggle_visible": true,
+      "sidebar_hidden_by_default_off_screen": "x=-351 (translate-x-full)",
+      "sidebar_slides_in_on_toggle": "x=0 after click",
+      "admin-sidebar-scrim_appears": true,
+      "scrim_click_closes_drawer": "sidebar returned to x=-351",
+      "topbar_height_mobile": "42px, unchanged after map zoom-in",
+      "logout_button_text_hidden": "span display:none (icon-only on mobile)"
+    },
+    "viewport_meta": "verified: width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+    "participant_regression_desktop": {
+      "old_event-details-button_removed": true,
+      "topbar-event-trigger_visible_and_clickable": true,
+      "event-details-dialog_opens": true,
+      "dialog_contains": ["start date 2026-06-13", "end date 2026-06-14", "participants count 2", "emergency phone 017663890144", "share-before-toggle", "share-after-toggle", "event-details-report-button", "event-details-leave-button"],
+      "sun-status-badge_text": "'Daytime Solar noon · 1h 29m' (phase present)",
+      "team_prefix": "# prefix used, no T\\d+ matches found in body text"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminDashboard.jsx is 881 lines — exceeds the 700-line guideline; consider splitting Events panel, Participants panel, and Topbar into separate components.",
+    "Leaflet tile provider (carto.com/basemaps) requires an API key — tiles are watermarked 'API KEY REQUIRED'. Configure a valid CARTO API key or switch to OSM tiles for a clean map appearance."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "Admin: admin@roadtrip.com/admin123 (from /app/memory/test_credentials.md); Participant: test-share-window@rt.com/test1234 (provided in review request; not in test_credentials.md but works).",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin responsive topbar + slide-in mobile sidebar drawer + map interactive zoom are all verified working. Participant topbar-event-trigger opening event-details-dialog with report/leave buttons and share-before/after toggles works. Sun-status-badge shows phase text. Team numbers use '#' prefix everywhere. Only outstanding design concern: CARTO tile API key missing, causing 'API KEY REQUIRED' watermarks — out of scope for this iteration."
+}

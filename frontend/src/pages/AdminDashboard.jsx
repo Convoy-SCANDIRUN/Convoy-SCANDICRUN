@@ -18,7 +18,7 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing, ChevronDown, ChevronUp, Archive, ArchiveRestore, Settings } from "lucide-react";
+import { Plus, LogOut, Trash2, Map as MapIcon, Calendar, Users, Compass, ShieldAlert, Share2, Copy, Printer, Phone, Pencil, FileDown, Bell, BellOff, BellRing, ChevronDown, ChevronUp, Archive, ArchiveRestore, Settings, Menu, X } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 function EditEventDialog({ event, onClose, onSaved }) {
@@ -158,6 +158,10 @@ export default function AdminDashboard() {
     });
     const [showArchived, setShowArchived] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    // Sidebar drawer state — only used on mobile viewports (< sm). On desktop
+    // the sidebar is always visible. Closed by default so the map fills the
+    // mobile screen and users can pinch-zoom it freely.
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const { t } = useTranslation();
     useEffect(() => { try { localStorage.setItem("rt_admin_events_collapsed", eventsCollapsed ? "1" : "0"); } catch {} }, [eventsCollapsed]);
     useEffect(() => { try { localStorage.setItem("rt_admin_participants_collapsed", participantsCollapsed ? "1" : "0"); } catch {} }, [participantsCollapsed]);
@@ -327,47 +331,54 @@ export default function AdminDashboard() {
     };
 
     return (
-        <div className="h-screen w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
-            {/* Topbar — safe-top adds env(safe-area-inset-top) padding so iOS PWA status bar doesn't overlap */}
-            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 glass border-b border-white/10 safe-top">
-                <div className="flex items-center gap-3 min-w-0">
+        <div className="h-[100dvh] w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
+            {/* Topbar — responsive to match the participant dashboard. */}
+            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 glass border-b border-white/10 safe-top">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    {/* Mobile drawer toggle */}
+                    <button type="button" onClick={() => setSidebarOpen((v) => !v)}
+                            data-testid="admin-sidebar-toggle"
+                            className="sm:hidden w-8 h-8 flex items-center justify-center border border-white/15 hover:bg-white/5 text-zinc-300 transition flex-shrink-0"
+                            title="Toggle panels">
+                        {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                    </button>
                     {active?.image_path ? (
                         <img src={fileUrl(active.image_path)} alt=""
-                             className="w-10 h-10 rounded-full object-cover border border-[#007AFF]/40 flex-shrink-0"
+                             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#007AFF]/40 flex-shrink-0"
                              data-testid="topbar-event-image"
                              onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
-                        <BrandLogo className="w-10 h-10" />
+                        <BrandLogo className="w-8 h-8 sm:w-10 sm:h-10" />
                     )}
                     <div className="min-w-0">
-                        <p className="font-display text-xl font-black uppercase leading-none truncate">
+                        <p className="font-display text-sm sm:text-xl font-black uppercase leading-none truncate">
                             {active?.name || "Command Center"}
                         </p>
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-1">Admin · {user?.name}</p>
+                        <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-0.5 sm:mt-1 truncate">Admin · {user?.name}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                     <button onClick={() => setSettingsOpen(true)}
                             type="button"
                             title={t("common.settings")}
                             data-testid="admin-settings-button"
-                            className="w-9 h-9 flex items-center justify-center border border-white/15 hover:bg-white/5 text-zinc-300 transition">
-                        <Settings className="w-4 h-4" />
+                            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center border border-white/15 hover:bg-white/5 text-zinc-300 transition">
+                        <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                     <button onClick={togglePush}
                             type="button"
                             title={pushOn ? "Notifications on — click to turn off" : "Enable push notifications"}
                             data-testid="admin-notifications-toggle"
-                            className={`w-9 h-9 flex items-center justify-center border transition ${
+                            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center border transition ${
                                 pushOn ? "border-[#34C759]/50 bg-[#34C759]/10 text-[#34C759]" :
                                 "border-white/15 hover:bg-white/5 text-zinc-300"
                             }`}>
-                        {pushOn ? <BellRing className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                        {pushOn ? <BellRing className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                     </button>
                     <InstallAppButton className="hidden sm:inline-flex" />
                     <Button onClick={logout} variant="ghost" data-testid="logout-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em]">
-                        <LogOut className="w-4 h-4 mr-2" /> {t("nav.logout")}
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
+                        <LogOut className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" /> <span className="hidden sm:inline">{t("nav.logout")}</span>
                     </Button>
                     <Button variant="ghost"
                             onClick={() => setConfirmAction({
@@ -381,19 +392,30 @@ export default function AdminDashboard() {
                                 },
                             })}
                             data-testid="delete-account-button"
-                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em]">
-                        <Trash2 className="w-4 h-4" />
+                            className="rounded-none border border-[#FF3B30]/40 text-[#FF3B30] hover:bg-[#FF3B30]/10 uppercase text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
+                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </Button>
                 </div>
             </header>
 
             {/* Map fills viewport */}
-            <div className="absolute inset-0 pt-[72px]">
+            <div className="absolute inset-0 pt-[60px] sm:pt-[72px]">
                 <MapView registrations={registrations} focusTarget={focusTarget} />
             </div>
 
-            {/* Sidebar */}
-            <aside className="absolute top-[88px] bottom-4 left-4 w-[360px] z-[1100] flex flex-col gap-3 overflow-hidden">
+            {/* Sidebar — persistent on desktop (sm+); slide-out drawer on mobile.
+                On mobile the sidebar sits on top of the map, but only when
+                the toggle is opened, so the map is fully interactive by
+                default (no more sidebar blocking the map). */}
+            {sidebarOpen && (
+                <div className="sm:hidden fixed inset-0 top-[60px] z-[1090] bg-black/50 backdrop-blur-sm"
+                     data-testid="admin-sidebar-scrim"
+                     onClick={() => setSidebarOpen(false)} />
+            )}
+            <aside className={`fixed sm:absolute top-[60px] sm:top-[88px] bottom-0 sm:bottom-4 left-0 sm:left-4 w-[90vw] max-w-[360px] sm:w-[360px] z-[1100] flex flex-col gap-3 overflow-y-auto sm:overflow-hidden p-3 sm:p-0 transition-transform duration-300 ${
+                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            } sm:translate-x-0`}
+                   data-testid="admin-sidebar">
                 {/* Events panel */}
                 <div className={`glass p-4 ${eventsCollapsed ? "flex-shrink-0" : "flex-shrink-0"}`} data-testid="events-panel">
                     <div className="flex items-center justify-between mb-3">

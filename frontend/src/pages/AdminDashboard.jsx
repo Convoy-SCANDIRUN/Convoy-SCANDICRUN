@@ -191,7 +191,7 @@ export default function AdminDashboard() {
         if (!w) return;
         const canvas = document.querySelector("canvas[data-qr='share']");
         const qrDataUrl = canvas ? canvas.toDataURL("image/png") : "";
-        // Format the event window in a driver-friendly "13 Jun 2026 → 14 Jun 2026" style.
+        // Format the event window in a friendly "13 Jun 2026 → 14 Jun 2026" style.
         const fmt = (iso) => {
             try {
                 const d = new Date(`${iso}T00:00:00Z`);
@@ -199,64 +199,111 @@ export default function AdminDashboard() {
             } catch { return iso; }
         };
         const eventImg = shareEvent.image_path ? fileUrl(shareEvent.image_path) : "";
+        const logoUrl = `${window.location.origin}/scandic-logo.png`;
         const dateRange = `${fmt(shareEvent.start_date)} → ${fmt(shareEvent.end_date)}`;
+        // Scandic Run brand palette: cyan #31A9E1 accents on a snow-white
+        // background, with Viking-inspired display typography (Norse-like).
         w.document.write(`<!DOCTYPE html>
             <html><head><meta charset="utf-8" /><title>${shareEvent.name} — Join Poster</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
             <style>
                 @page { size: A4 portrait; margin: 0; }
                 * { box-sizing: border-box; }
-                html, body { margin: 0; padding: 0; }
-                body { font-family: 'Helvetica Neue', 'Inter', system-ui, sans-serif; color: #0A0A0A; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                html, body { margin: 0; padding: 0; background: #fff; }
+                body { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; color: #0e1a24; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 .poster {
                     width: 210mm; min-height: 297mm; margin: 0 auto;
-                    background: linear-gradient(160deg, #0A0A0A 0%, #12181f 45%, #0A0A0A 100%);
-                    color: #fff; position: relative; overflow: hidden;
+                    background:
+                        radial-gradient(120% 60% at 50% 0%, rgba(49, 169, 225, 0.10) 0%, transparent 60%),
+                        radial-gradient(80% 40% at 50% 100%, rgba(49, 169, 225, 0.08) 0%, transparent 60%),
+                        #ffffff;
+                    position: relative; overflow: hidden;
                     display: flex; flex-direction: column; align-items: center;
-                    padding: 22mm 18mm; text-align: center;
+                    padding: 18mm 16mm 16mm; text-align: center;
                 }
-                .corner {
-                    position: absolute; width: 24mm; height: 24mm;
-                    border: 2px solid #FFCC00;
+                /* Top brand row: Viking logo + wordmark */
+                .brand-row {
+                    display: flex; align-items: center; justify-content: center; gap: 8mm;
+                    margin-bottom: 10mm;
                 }
-                .corner.tl { top: 8mm; left: 8mm; border-right: 0; border-bottom: 0; }
-                .corner.tr { top: 8mm; right: 8mm; border-left: 0; border-bottom: 0; }
-                .corner.bl { bottom: 8mm; left: 8mm; border-right: 0; border-top: 0; }
-                .corner.br { bottom: 8mm; right: 8mm; border-left: 0; border-top: 0; }
-                .kicker { font-size: 10pt; letter-spacing: 0.5em; color: #FFCC00; font-weight: 700; text-transform: uppercase; margin-bottom: 6mm; }
-                .event-image { width: 40mm; height: 40mm; border-radius: 50%; object-fit: cover; border: 3px solid rgba(255,255,255,0.15); margin-bottom: 8mm; }
-                h1 { font-size: 34pt; font-weight: 900; letter-spacing: -0.02em; margin: 0 0 4mm; text-transform: uppercase; line-height: 0.95; max-width: 160mm; }
-                .dates { font-size: 12pt; letter-spacing: 0.25em; color: #FFCC00; text-transform: uppercase; margin-bottom: 10mm; font-weight: 600; }
-                .cta { font-size: 9pt; letter-spacing: 0.4em; color: rgba(255,255,255,0.5); text-transform: uppercase; margin-bottom: 4mm; }
-                .code {
-                    font-size: 42pt; font-weight: 900; letter-spacing: 0.15em; color: #fff;
-                    padding: 4mm 8mm; border: 2px solid #FFCC00;
-                    background: rgba(255, 204, 0, 0.08); margin-bottom: 10mm;
+                .brand-logo { width: 22mm; height: 22mm; object-fit: contain; }
+                .brand-name {
+                    font-family: 'Cinzel', serif; font-weight: 900;
+                    font-size: 22pt; letter-spacing: 0.08em;
+                    color: #0e1a24; text-transform: uppercase;
                 }
-                .qr-frame { padding: 6mm; background: #fff; border: 4px solid #FFCC00; margin-bottom: 8mm; }
-                .qr-frame img { display: block; width: 70mm; height: 70mm; }
-                .url { font-size: 9pt; color: rgba(255,255,255,0.55); word-break: break-all; max-width: 160mm; margin-top: auto; padding-top: 8mm; }
-                .brand { position: absolute; bottom: 12mm; left: 0; right: 0; text-align: center; font-size: 8pt; letter-spacing: 0.5em; color: rgba(255,255,255,0.3); text-transform: uppercase; }
+                .divider { width: 40mm; height: 1.2mm; background: #31A9E1; margin: 0 auto 8mm; }
+                .kicker { font-size: 9pt; letter-spacing: 0.45em; color: #31A9E1; font-weight: 700; text-transform: uppercase; margin-bottom: 4mm; }
+                .event-image { width: 36mm; height: 36mm; border-radius: 50%; object-fit: cover; border: 3px solid #31A9E1; margin-bottom: 6mm; }
+                h1 {
+                    font-family: 'Cinzel', serif; font-weight: 900;
+                    font-size: 36pt; letter-spacing: 0.02em;
+                    margin: 0 0 4mm; text-transform: uppercase; line-height: 1.0;
+                    max-width: 170mm; color: #0e1a24;
+                }
+                .dates {
+                    display: inline-block; font-size: 11pt; letter-spacing: 0.3em;
+                    color: #0e1a24; text-transform: uppercase; margin-bottom: 10mm;
+                    font-weight: 700; padding: 3mm 8mm;
+                    border-top: 0.4mm solid #31A9E1; border-bottom: 0.4mm solid #31A9E1;
+                }
+                .cta { font-size: 9pt; letter-spacing: 0.4em; color: #6b7c8a; text-transform: uppercase; margin-bottom: 4mm; font-weight: 600; }
+                .code-pill {
+                    display: inline-block; background: #31A9E1; color: #ffffff;
+                    padding: 5mm 12mm; border-radius: 999px; margin-bottom: 10mm;
+                    font-family: 'Inter', sans-serif; font-weight: 800;
+                    font-size: 34pt; letter-spacing: 0.18em;
+                    box-shadow: 0 0.6mm 0 rgba(0,0,0,0.05);
+                }
+                .qr-frame {
+                    padding: 5mm; background: #ffffff;
+                    border: 0.6mm solid #d7e6ef; border-radius: 4mm;
+                    box-shadow: 0 4mm 12mm rgba(14, 26, 36, 0.08);
+                    margin-bottom: 8mm;
+                }
+                .qr-frame img { display: block; width: 68mm; height: 68mm; }
+                .url {
+                    font-size: 9.5pt; color: #6b7c8a; word-break: break-all;
+                    max-width: 160mm; margin-top: 6mm; font-weight: 500;
+                }
+                .footer-strip {
+                    position: absolute; left: 0; right: 0; bottom: 0;
+                    background: #31A9E1; color: #ffffff;
+                    padding: 5mm 0; text-align: center;
+                    font-size: 8.5pt; letter-spacing: 0.4em; text-transform: uppercase; font-weight: 700;
+                }
                 @media print { .poster { min-height: 297mm; height: 297mm; } }
             </style></head><body>
                 <div class="poster">
-                    <span class="corner tl"></span><span class="corner tr"></span>
-                    <span class="corner bl"></span><span class="corner br"></span>
-                    <div class="kicker">Scandic Run · You're invited</div>
+                    <div class="brand-row">
+                        <img class="brand-logo" src="${logoUrl}" alt="" crossorigin="anonymous" onerror="this.style.display='none'" />
+                        <span class="brand-name">Scandic Run</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="kicker">You're invited</div>
                     ${eventImg ? `<img class="event-image" src="${eventImg}" alt="" crossorigin="anonymous" onerror="this.style.display='none'" />` : ""}
                     <h1>${shareEvent.name}</h1>
                     <div class="dates">${dateRange}</div>
                     <div class="cta">Scan the QR or enter the code</div>
-                    <div class="code">${shareEvent.code}</div>
+                    <div class="code-pill">${shareEvent.code}</div>
                     <div class="qr-frame"><img src="${qrDataUrl}" alt="QR" /></div>
                     <div class="url">${shareUrl}</div>
-                    <div class="brand">Scandic Run · Convoy Tracker</div>
+                    <div class="footer-strip">Scandic Run · Convoy Tracker · scandicrun.com</div>
                 </div>
                 <script>
-                    // Wait for the event image (if any) so it doesn't print half-loaded.
-                    const img = document.querySelector('.event-image');
-                    const go = () => setTimeout(() => window.print(), 250);
-                    if (!img || img.complete) go();
-                    else { img.addEventListener('load', go); img.addEventListener('error', go); }
+                    // Wait for event image + brand logo so nothing prints half-loaded.
+                    const imgs = Array.from(document.querySelectorAll('img'));
+                    let pending = imgs.filter(i => !i.complete).length;
+                    const go = () => setTimeout(() => window.print(), 300);
+                    if (!pending) go();
+                    else imgs.forEach(i => {
+                        if (i.complete) return;
+                        const done = () => { if (--pending <= 0) go(); };
+                        i.addEventListener('load', done);
+                        i.addEventListener('error', done);
+                    });
                 </script>
             </body></html>`);
         w.document.close();
@@ -734,14 +781,14 @@ export default function AdminDashboard() {
             )}
 
             <Dialog open={!!shareEvent} onOpenChange={(o) => !o && setShareEvent(null)}>
-                <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md" data-testid="share-dialog">
+                <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md p-5" data-testid="share-dialog">
                     <DialogHeader>
                         <DialogTitle className="font-display text-2xl uppercase tracking-tight text-center">{t("admin.shareTitle")}</DialogTitle>
                     </DialogHeader>
                     {shareEvent && (
-                        <div className="flex flex-col items-center gap-5 pt-2">
+                        <div className="flex flex-col items-stretch gap-5 pt-2 w-full min-w-0">
                             {/* Event identity — image + name + dates */}
-                            <div className="flex flex-col items-center gap-2 w-full">
+                            <div className="flex flex-col items-center gap-2 w-full min-w-0">
                                 {shareEvent.image_path ? (
                                     <img src={fileUrl(shareEvent.image_path)} alt=""
                                          className="w-16 h-16 rounded-full object-cover border border-white/15"
@@ -749,18 +796,18 @@ export default function AdminDashboard() {
                                 ) : (
                                     <BrandLogo className="w-14 h-14" />
                                 )}
-                                <p className="font-display text-xl font-black uppercase tracking-tight text-center leading-tight px-2">
+                                <p className="font-display text-xl font-black uppercase tracking-tight text-center leading-tight px-2 break-words">
                                     {shareEvent.name}
                                 </p>
-                                <p className="text-[10px] uppercase tracking-[0.3em] text-[#FFCC00] font-bold">
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-[#31A9E1] font-bold">
                                     {shareEvent.start_date} → {shareEvent.end_date}
                                 </p>
                             </div>
 
                             {/* Join code */}
-                            <div className="flex flex-col items-center w-full">
+                            <div className="flex flex-col items-center w-full min-w-0">
                                 <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-1">{t("admin.shareCode")}</p>
-                                <p className="font-display text-5xl font-black tracking-[0.3em] text-[#007AFF] text-center" data-testid="share-event-code">
+                                <p className="font-display text-4xl sm:text-5xl font-black tracking-[0.2em] text-[#31A9E1] text-center break-all" data-testid="share-event-code">
                                     {shareEvent.code}
                                 </p>
                             </div>
@@ -769,16 +816,16 @@ export default function AdminDashboard() {
                             <div className="flex items-center justify-center bg-white p-4 mx-auto">
                                 <QRCodeCanvas
                                     value={shareUrl}
-                                    size={220}
+                                    size={200}
                                     level="M"
                                     includeMargin={false}
                                     data-qr="share"
                                 />
                             </div>
 
-                            {/* Join URL with copy */}
-                            <div className="flex items-center gap-2 border border-white/15 px-3 py-2 w-full">
-                                <code className="text-xs text-zinc-300 truncate flex-1" data-testid="share-url">{shareUrl}</code>
+                            {/* Join URL with copy — min-w-0 lets truncate shrink inside flex */}
+                            <div className="flex items-center gap-2 border border-white/15 px-3 py-2 w-full min-w-0">
+                                <code className="text-xs text-zinc-300 truncate flex-1 min-w-0" data-testid="share-url">{shareUrl}</code>
                                 <button onClick={copyShareUrl} data-testid="copy-share-url"
                                         className="text-zinc-400 hover:text-white p-1 flex-shrink-0"
                                         title={t("admin.shareUrl")}>
@@ -786,14 +833,14 @@ export default function AdminDashboard() {
                                 </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 w-full">
+                            <div className="grid grid-cols-2 gap-2 w-full min-w-0">
                                 <Button onClick={copyShareUrl} variant="ghost" data-testid="copy-link-button"
-                                        className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em] h-11">
-                                    <Copy className="w-3 h-3 mr-2" /> {t("admin.shareUrl")}
+                                        className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] tracking-[0.1em] h-11 px-2 min-w-0">
+                                    <Copy className="w-3 h-3 mr-1.5 flex-shrink-0" /> <span className="truncate">{t("admin.shareUrl")}</span>
                                 </Button>
                                 <Button onClick={printPoster} data-testid="print-poster-button"
-                                        className="rounded-none bg-[#007AFF] hover:bg-[#005bb5] uppercase text-xs tracking-[0.2em] h-11">
-                                    <Printer className="w-3 h-3 mr-2" /> {t("admin.sharePrint")}
+                                        className="rounded-none bg-[#31A9E1] hover:bg-[#2793c6] uppercase text-[10px] tracking-[0.1em] h-11 px-2 min-w-0 text-white">
+                                    <Printer className="w-3 h-3 mr-1.5 flex-shrink-0" /> <span className="truncate">{t("admin.sharePrint")}</span>
                                 </Button>
                             </div>
                         </div>

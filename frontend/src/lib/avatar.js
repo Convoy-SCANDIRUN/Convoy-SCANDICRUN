@@ -13,7 +13,7 @@ function initialsOf(reg) {
     const b = (reg?.last_name || "").trim().charAt(0);
     const combined = `${a}${b}`.toUpperCase();
     if (combined) return combined;
-    if (reg?.team_number) return `T${reg.team_number}`.slice(0, 3);
+    if (reg?.team_number) return `#${reg.team_number}`.slice(0, 3);
     return "?";
 }
 

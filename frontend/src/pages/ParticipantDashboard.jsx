@@ -934,7 +934,7 @@ export default function ParticipantDashboard() {
                             {activeEvent?.name || "Convoy"}
                         </p>
                         <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-0.5 sm:mt-1 truncate">
-                            {myReg ? `T${myReg.team_number} · ${myReg.team_name}` : user?.name}
+                            {myReg ? `#${myReg.team_number} · ${myReg.team_name}` : user?.name}
                         </p>
                     </div>
                 </div>
@@ -1064,7 +1064,7 @@ export default function ParticipantDashboard() {
                                         onClick={() => openHelpNav(r)}
                                         data-testid={`help-notification-${r.id}`}
                                         className="w-full text-left text-xs px-2 py-1.5 -mx-2 hover:bg-[#FFCC00]/10 transition cursor-pointer">
-                                    <span className="font-bold">T{r.team_number} · {r.team_name}</span>
+                                    <span className="font-bold">#{r.team_number} · {r.team_name}</span>
                                     {r.help_message && (
                                         <span className="text-zinc-300 italic"> — {r.help_message}</span>
                                     )}
@@ -1228,7 +1228,7 @@ export default function ParticipantDashboard() {
                                          className="w-14 h-14 rounded-full object-cover border-2 border-[#FFCC00]"
                                          onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }} />
                                     <div className="min-w-0">
-                                        <p className="font-display text-xl font-black uppercase">T{r.team_number} · {r.team_name}</p>
+                                        <p className="font-display text-xl font-black uppercase">#{r.team_number} · {r.team_name}</p>
                                         <p className="text-xs text-zinc-300">{r.first_name} {r.last_name}</p>
                                     </div>
                                 </div>
@@ -1302,7 +1302,7 @@ export default function ParticipantDashboard() {
                                     />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold truncate">
-                                            T{r.team_number} · {r.team_name}
+                                            #{r.team_number} · {r.team_name}
                                             {isMe && <span className="ml-2 text-[10px] uppercase text-[#34C759] tracking-[0.2em]" aria-label="You">· you</span>}
                                         </p>
                                         <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>

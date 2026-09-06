@@ -600,7 +600,7 @@ export default function AdminDashboard() {
                                             <div className="flex-1 min-w-0">
                                                 <p className={`text-sm font-bold truncate ${r.help_status === "sos" ? "text-[#FF3B30]" : ""}`}>
                                                     {r.help_status === "sos" && <span className="mr-1">🚨</span>}
-                                                    T{r.team_number} · {r.team_name}
+                                                    #{r.team_number} · {r.team_name}
                                                 </p>
                                                 <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
                                             </div>
@@ -739,7 +739,7 @@ export default function AdminDashboard() {
                                     />
                                     <div className="min-w-0">
                                         <p className="font-display text-xl font-black uppercase">
-                                            T{r.team_number} · {r.team_name}
+                                            #{r.team_number} · {r.team_name}
                                         </p>
                                         <p className="text-xs text-zinc-300">{r.first_name} {r.last_name}</p>
                                     </div>

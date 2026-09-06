@@ -3,7 +3,8 @@ import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
-import { Crosshair, Locate, Plus, Minus } from "lucide-react";
+import { Crosshair, Locate, Plus, Minus, Sunrise, Sunset, Moon } from "lucide-react";
+import { sunStateAt, PHASE_STYLE, TRANSITION_KEYS } from "@/lib/sun";
 
 /** Human-readable "N minutes ago" style label with fallbacks for missing /
  *  future timestamps. Localised via i18n keys `map.updated*`. */
@@ -32,7 +33,7 @@ function buildIcon(reg, opts = {}) {
     if (status === "sos" && hideSos) status = "normal"; // crew-only red glow
     const pic = avatarUrl(reg);
     const fallback = fallbackAvatar(reg);
-    const labelText = `T${reg.team_number} · ${reg.team_name}`;
+    const labelText = `#${reg.team_number} · ${reg.team_name}`;
     const showSelf = isSelf && status === "normal";
     const label = isSelf ? `${labelText} · YOU` : labelText;
     const glow = status === "sos" ? '<div class="marker-glow-sos"></div>'
@@ -148,6 +149,45 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
         if (focusTarget?.id && focusTarget.id !== selfId) setFollow(false);
     }, [focusTarget?.nonce, focusTarget?.id, selfId]);
 
+    // Sun state — recomputed every 60 s at the participant's own location so
+    // the tint and next-transition badge always reflect current daylight.
+    const [sunTick, setSunTick] = useState(Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setSunTick(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, []);
+    const sun = useMemo(() => {
+        // Prefer the participant's own location; fall back to any placed
+        // participant so the admin overview and pre-location participants
+        // still see the current daylight tint.
+        const anchor = selfPosition
+            || (placed.length ? [placed[0].lat, placed[0].lng] : null);
+        if (!anchor) return null;
+        return sunStateAt(anchor[0], anchor[1], new Date(sunTick));
+    }, [selfPosition?.[0], selfPosition?.[1], placed, sunTick]);
+    const sunStyle = sun ? PHASE_STYLE[sun.phase] : null;
+
+    /** Human-readable "in X h Y m" string from a millisecond duration. */
+    const fmtIn = (ms) => {
+        if (!ms || ms < 0) return "";
+        const total = Math.floor(ms / 60_000);
+        const h = Math.floor(total / 60);
+        const m = total % 60;
+        return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
+    /** Local "HH:MM" of a given Date. */
+    const fmtHm = (d) => d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    /** Pick the right icon for the next transition. */
+    const nextIcon = sun?.nextKey && (
+        sun.nextKey === "sunrise" || sun.nextKey === "sunriseEnd" || sun.nextKey === "dawn"
+            ? <Sunrise className="w-3.5 h-3.5" />
+            : sun.nextKey === "sunset" || sun.nextKey === "sunsetStart" || sun.nextKey === "dusk"
+            ? <Sunset className="w-3.5 h-3.5" />
+            : sun.nextKey === "night" || sun.nextKey === "nauticalDusk" || sun.nextKey === "nightEnd"
+            ? <Moon className="w-3.5 h-3.5" />
+            : <Sunrise className="w-3.5 h-3.5" />
+    );
+
     // When the parent asks to focus on a team, open that marker's popup
     // a moment after the flyTo animation kicks in so the user gets visual
     // confirmation of which team was selected.
@@ -198,7 +238,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                         >
                             <Popup className="rt-popup" maxWidth={260}>
                                 <div className="rt-popup-inner" data-testid={`marker-popup-${r.id}`}>
-                                    <p className="rt-popup-title">T{r.team_number} · {r.team_name}</p>
+                                    <p className="rt-popup-title">#{r.team_number} · {r.team_name}</p>
                                     <p className="rt-popup-sub">{r.first_name} {r.last_name}{isSelf ? " (you)" : ""}</p>
                                     <p className="rt-popup-time" data-testid={`marker-last-update-${r.id}`}>
                                         {formatRelative(r.last_update, t)}
@@ -274,6 +314,39 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                     <span className="text-[10px] uppercase tracking-wider font-bold">{t("map.all")}</span>
                 </button>
             </div>
+
+            {/* Sun tint overlay — tints the whole map based on current
+                daylight at the participant's position. `pointer-events: none`
+                so it never blocks map gestures. Sits below the controls
+                (z-[400]) and countdown watermark (z-[600]) but above tiles. */}
+            {sunStyle && sunStyle.bg !== "transparent" && (
+                <div className="absolute inset-0 pointer-events-none z-[350] transition-colors duration-1000"
+                     style={{ backgroundColor: sunStyle.bg }}
+                     data-testid={`sun-tint-${sun.phase}`} />
+            )}
+
+            {/* Sun-status badge — top-left, small pill showing current phase
+                and time-to-next-transition. Helpful for drivers planning
+                light-sensitive stretches. */}
+            {sun && sunStyle && (
+                <div className="absolute top-14 left-3 z-[420] glass border border-white/15 px-2.5 py-1.5 flex items-center gap-2 text-white"
+                     data-testid="sun-status-badge"
+                     title={`Sunrise ${fmtHm(sun.sunrise)} · Sunset ${fmtHm(sun.sunset)}`}>
+                    <span style={{ color: sunStyle.accent }} className="flex items-center">
+                        {nextIcon}
+                    </span>
+                    <div className="text-[10px] leading-tight">
+                        <div className="uppercase tracking-wider font-bold" style={{ color: sunStyle.accent }}>
+                            {t(sunStyle.labelKey)}
+                        </div>
+                        {sun.nextKey && sun.nextInMs != null && (
+                            <div className="text-zinc-300 tabular-nums">
+                                {t(TRANSITION_KEYS[sun.nextKey])} · {fmtIn(sun.nextInMs)}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Countdown watermark — shown when the participant has joined
                 an event that hasn't started yet. Non-interactive (pointer-events:

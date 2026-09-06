@@ -339,7 +339,7 @@ export async function buildParticipantPdf(summary) {
     // logged point, so a single render here covers the entire trip.
     if (total.route && total.route.length >= 2) {
         doc.addPage();
-        header(doc, "Event overview map", `${r.team_name} · T${r.team_number}`);
+        header(doc, "Event overview map", `${r.team_name} · #${r.team_number}`);
         let overviewPng = null;
         try { overviewPng = await routeOnRealMapPng(total.route, 1400, 700); }
         catch (_) { /* fall through */ }
@@ -366,7 +366,7 @@ export async function buildParticipantPdf(summary) {
     for (const d of daily) {
         if (!d.route || d.route.length < 2) continue;
         doc.addPage();
-        header(doc, `Day ${d.date}`, `${r.team_name} · T${r.team_number}`);
+        header(doc, `Day ${d.date}`, `${r.team_name} · #${r.team_number}`);
         let png = null;
         try { png = await routeOnRealMapPng(d.route, 1200, 600); }
         catch (_) { /* fall through */ }
@@ -387,7 +387,7 @@ export async function buildParticipantPdf(summary) {
     }
 
     footer(doc);
-    const slug = `${event.name}-T${r.team_number}-${r.team_name}`.replace(/[^\w-]+/g, "_");
+    const slug = `${event.name}-#${r.team_number}-${r.team_name}`.replace(/[^\w-]+/g, "_");
     doc.save(`${slug}.pdf`);
 }
 
@@ -420,7 +420,7 @@ export async function buildEventPdf(summary) {
         head: [["#", "Team", "Driver", "Distance", "Duration", "Moving", "Avg km/h", "Max km/h"]],
         body: teams.map((t, i) => [
             String(i + 1),
-            `T${t.team_number} · ${t.team_name}`,
+            `#${t.team_number} · ${t.team_name}`,
             `${t.first_name || ""} ${t.last_name || ""}`.trim(),
             fmtKm(t.total.distance_km),
             fmtMin(t.total.duration_min),
@@ -465,7 +465,7 @@ export async function buildEventPdf(summary) {
             doc.setFillColor(x.color);
             doc.rect(xPos, yPos - 3, 4, 4, "F");
             doc.setTextColor(C_TEXT);
-            doc.text(`T${x.team.team_number} · ${x.team.team_name}`, xPos + 6, yPos);
+            doc.text(`#${x.team.team_number} · ${x.team.team_name}`, xPos + 6, yPos);
         });
     }
 
@@ -476,7 +476,7 @@ export async function buildEventPdf(summary) {
         const t = teams[i];
         if (!t.total.route || t.total.route.length < 2) continue;
         doc.addPage();
-        header(doc, `T${t.team_number} · ${t.team_name}`,
+        header(doc, `#${t.team_number} · ${t.team_name}`,
                `${(t.first_name || "") + " " + (t.last_name || "")}`.trim() || event.name);
         let teamPng = null;
         try { teamPng = await routeOnRealMapPng(t.total.route, 1400, 700); }
@@ -538,7 +538,7 @@ export async function buildEventPdf(summary) {
             body: teams.map((t) => {
                 const d = t.daily.find((x) => x.date === day) || {};
                 return [
-                    `T${t.team_number} · ${t.team_name}`,
+                    `#${t.team_number} · ${t.team_name}`,
                     `${t.first_name || ""} ${t.last_name || ""}`.trim(),
                     fmtKm(d.distance_km),
                     fmtMin(d.duration_min),

@@ -186,30 +186,78 @@ export default function AdminDashboard() {
     };
 
     const printPoster = () => {
-        const w = window.open("", "_blank", "width=800,height=900");
+        if (!shareEvent) return;
+        const w = window.open("", "_blank", "width=900,height=1200");
         if (!w) return;
         const canvas = document.querySelector("canvas[data-qr='share']");
-        const dataUrl = canvas ? canvas.toDataURL("image/png") : "";
-        w.document.write(`
-            <html><head><title>${shareEvent.name} — Join Poster</title>
+        const qrDataUrl = canvas ? canvas.toDataURL("image/png") : "";
+        // Format the event window in a driver-friendly "13 Jun 2026 → 14 Jun 2026" style.
+        const fmt = (iso) => {
+            try {
+                const d = new Date(`${iso}T00:00:00Z`);
+                return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+            } catch { return iso; }
+        };
+        const eventImg = shareEvent.image_path ? fileUrl(shareEvent.image_path) : "";
+        const dateRange = `${fmt(shareEvent.start_date)} → ${fmt(shareEvent.end_date)}`;
+        w.document.write(`<!DOCTYPE html>
+            <html><head><meta charset="utf-8" /><title>${shareEvent.name} — Join Poster</title>
             <style>
-                @page { margin: 24mm; }
-                body { font-family: 'Helvetica Neue', sans-serif; text-align: center; color: #000; padding: 40px; }
-                h1 { font-size: 48px; letter-spacing: -1px; margin: 0 0 8px; text-transform: uppercase; }
-                .sub { letter-spacing: 0.4em; font-size: 12px; color: #666; text-transform: uppercase; }
-                .code { font-size: 72px; font-weight: 900; letter-spacing: 12px; margin: 24px 0 8px; }
-                img { width: 360px; height: 360px; margin-top: 24px; }
-                .url { margin-top: 16px; font-size: 14px; color: #333; word-break: break-all; }
-                .foot { margin-top: 40px; font-size: 11px; letter-spacing: 0.3em; color: #999; text-transform: uppercase; }
+                @page { size: A4 portrait; margin: 0; }
+                * { box-sizing: border-box; }
+                html, body { margin: 0; padding: 0; }
+                body { font-family: 'Helvetica Neue', 'Inter', system-ui, sans-serif; color: #0A0A0A; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .poster {
+                    width: 210mm; min-height: 297mm; margin: 0 auto;
+                    background: linear-gradient(160deg, #0A0A0A 0%, #12181f 45%, #0A0A0A 100%);
+                    color: #fff; position: relative; overflow: hidden;
+                    display: flex; flex-direction: column; align-items: center;
+                    padding: 22mm 18mm; text-align: center;
+                }
+                .corner {
+                    position: absolute; width: 24mm; height: 24mm;
+                    border: 2px solid #FFCC00;
+                }
+                .corner.tl { top: 8mm; left: 8mm; border-right: 0; border-bottom: 0; }
+                .corner.tr { top: 8mm; right: 8mm; border-left: 0; border-bottom: 0; }
+                .corner.bl { bottom: 8mm; left: 8mm; border-right: 0; border-top: 0; }
+                .corner.br { bottom: 8mm; right: 8mm; border-left: 0; border-top: 0; }
+                .kicker { font-size: 10pt; letter-spacing: 0.5em; color: #FFCC00; font-weight: 700; text-transform: uppercase; margin-bottom: 6mm; }
+                .event-image { width: 40mm; height: 40mm; border-radius: 50%; object-fit: cover; border: 3px solid rgba(255,255,255,0.15); margin-bottom: 8mm; }
+                h1 { font-size: 34pt; font-weight: 900; letter-spacing: -0.02em; margin: 0 0 4mm; text-transform: uppercase; line-height: 0.95; max-width: 160mm; }
+                .dates { font-size: 12pt; letter-spacing: 0.25em; color: #FFCC00; text-transform: uppercase; margin-bottom: 10mm; font-weight: 600; }
+                .cta { font-size: 9pt; letter-spacing: 0.4em; color: rgba(255,255,255,0.5); text-transform: uppercase; margin-bottom: 4mm; }
+                .code {
+                    font-size: 42pt; font-weight: 900; letter-spacing: 0.15em; color: #fff;
+                    padding: 4mm 8mm; border: 2px solid #FFCC00;
+                    background: rgba(255, 204, 0, 0.08); margin-bottom: 10mm;
+                }
+                .qr-frame { padding: 6mm; background: #fff; border: 4px solid #FFCC00; margin-bottom: 8mm; }
+                .qr-frame img { display: block; width: 70mm; height: 70mm; }
+                .url { font-size: 9pt; color: rgba(255,255,255,0.55); word-break: break-all; max-width: 160mm; margin-top: auto; padding-top: 8mm; }
+                .brand { position: absolute; bottom: 12mm; left: 0; right: 0; text-align: center; font-size: 8pt; letter-spacing: 0.5em; color: rgba(255,255,255,0.3); text-transform: uppercase; }
+                @media print { .poster { min-height: 297mm; height: 297mm; } }
             </style></head><body>
-                <div class="sub">Convoy · Tactical Tracker</div>
-                <h1>${shareEvent.name}</h1>
-                <div class="sub">Scan or enter code to join</div>
-                <div class="code">${shareEvent.code}</div>
-                <img src="${dataUrl}" alt="QR" />
-                <div class="url">${shareUrl}</div>
-                <div class="foot">${shareEvent.start_date} → ${shareEvent.end_date}</div>
-                <script>window.onload = () => { setTimeout(() => window.print(), 300); };</script>
+                <div class="poster">
+                    <span class="corner tl"></span><span class="corner tr"></span>
+                    <span class="corner bl"></span><span class="corner br"></span>
+                    <div class="kicker">Scandic Run · You're invited</div>
+                    ${eventImg ? `<img class="event-image" src="${eventImg}" alt="" crossorigin="anonymous" onerror="this.style.display='none'" />` : ""}
+                    <h1>${shareEvent.name}</h1>
+                    <div class="dates">${dateRange}</div>
+                    <div class="cta">Scan the QR or enter the code</div>
+                    <div class="code">${shareEvent.code}</div>
+                    <div class="qr-frame"><img src="${qrDataUrl}" alt="QR" /></div>
+                    <div class="url">${shareUrl}</div>
+                    <div class="brand">Scandic Run · Convoy Tracker</div>
+                </div>
+                <script>
+                    // Wait for the event image (if any) so it doesn't print half-loaded.
+                    const img = document.querySelector('.event-image');
+                    const go = () => setTimeout(() => window.print(), 250);
+                    if (!img || img.complete) go();
+                    else { img.addEventListener('load', go); img.addEventListener('error', go); }
+                </script>
             </body></html>`);
         w.document.close();
     };
@@ -688,17 +736,37 @@ export default function AdminDashboard() {
             <Dialog open={!!shareEvent} onOpenChange={(o) => !o && setShareEvent(null)}>
                 <DialogContent className="bg-[#0A0A0A] border border-white/15 rounded-none text-white max-w-md" data-testid="share-dialog">
                     <DialogHeader>
-                        <DialogTitle className="font-display text-2xl uppercase tracking-tight">{t("admin.shareTitle")}</DialogTitle>
+                        <DialogTitle className="font-display text-2xl uppercase tracking-tight text-center">{t("admin.shareTitle")}</DialogTitle>
                     </DialogHeader>
                     {shareEvent && (
-                        <div className="space-y-5">
-                            <div className="text-center">
+                        <div className="flex flex-col items-center gap-5 pt-2">
+                            {/* Event identity — image + name + dates */}
+                            <div className="flex flex-col items-center gap-2 w-full">
+                                {shareEvent.image_path ? (
+                                    <img src={fileUrl(shareEvent.image_path)} alt=""
+                                         className="w-16 h-16 rounded-full object-cover border border-white/15"
+                                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                ) : (
+                                    <BrandLogo className="w-14 h-14" />
+                                )}
+                                <p className="font-display text-xl font-black uppercase tracking-tight text-center leading-tight px-2">
+                                    {shareEvent.name}
+                                </p>
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-[#FFCC00] font-bold">
+                                    {shareEvent.start_date} → {shareEvent.end_date}
+                                </p>
+                            </div>
+
+                            {/* Join code */}
+                            <div className="flex flex-col items-center w-full">
                                 <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-1">{t("admin.shareCode")}</p>
-                                <p className="font-display text-5xl font-black tracking-[0.3em] text-[#007AFF]" data-testid="share-event-code">
+                                <p className="font-display text-5xl font-black tracking-[0.3em] text-[#007AFF] text-center" data-testid="share-event-code">
                                     {shareEvent.code}
                                 </p>
                             </div>
-                            <div className="flex justify-center bg-white p-4">
+
+                            {/* QR code */}
+                            <div className="flex items-center justify-center bg-white p-4 mx-auto">
                                 <QRCodeCanvas
                                     value={shareUrl}
                                     size={220}
@@ -707,15 +775,18 @@ export default function AdminDashboard() {
                                     data-qr="share"
                                 />
                             </div>
-                            <div className="flex items-center gap-2 border border-white/15 px-3 py-2">
+
+                            {/* Join URL with copy */}
+                            <div className="flex items-center gap-2 border border-white/15 px-3 py-2 w-full">
                                 <code className="text-xs text-zinc-300 truncate flex-1" data-testid="share-url">{shareUrl}</code>
                                 <button onClick={copyShareUrl} data-testid="copy-share-url"
-                                        className="text-zinc-400 hover:text-white p-1"
+                                        className="text-zinc-400 hover:text-white p-1 flex-shrink-0"
                                         title={t("admin.shareUrl")}>
                                     <Copy className="w-4 h-4" />
                                 </button>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+
+                            <div className="grid grid-cols-2 gap-3 w-full">
                                 <Button onClick={copyShareUrl} variant="ghost" data-testid="copy-link-button"
                                         className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-xs tracking-[0.2em] h-11">
                                     <Copy className="w-3 h-3 mr-2" /> {t("admin.shareUrl")}

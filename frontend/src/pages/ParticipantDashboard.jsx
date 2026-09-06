@@ -920,7 +920,10 @@ export default function ParticipantDashboard() {
         <div className="h-[100dvh] w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
             {/* Topbar — fixed so it's always on screen on iOS Safari. safe-top adds env(safe-area-inset-top) padding so iOS PWA status bar doesn't overlap. */}
             <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 glass border-b border-white/10 safe-top">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <button type="button" onClick={() => activeEvent && setShowEventDetails(true)}
+                        disabled={!activeEvent}
+                        data-testid="topbar-event-trigger"
+                        className="flex items-center gap-2 sm:gap-3 min-w-0 text-left hover:opacity-80 transition disabled:opacity-100 disabled:cursor-default">
                     {activeEvent?.image_path ? (
                         <img src={fileUrl(activeEvent.image_path)} alt=""
                              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#007AFF]/40 flex-shrink-0"
@@ -937,17 +940,12 @@ export default function ParticipantDashboard() {
                             {myReg ? `#${myReg.team_number} · ${myReg.team_name}` : user?.name}
                         </p>
                     </div>
-                </div>
+                </button>
                 <div className="flex items-center gap-1 sm:gap-2">
                     <Button variant="ghost" onClick={() => setEditProfileOpen(true)} data-testid="edit-profile-button"
                             className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3"
                             title={t("nav.profile")}>
                         <UserCog className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.profile")}</span>
-                    </Button>
-                    <Button variant="ghost" onClick={() => setShowEventDetails(true)} data-testid="event-details-button"
-                            disabled={!activeEvent}
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                        <Calendar className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{activeEvent?.name || t("participant.myEventsTitle")}</span>
                     </Button>
                     {!myReg && (
                         <Button variant="ghost" onClick={() => setShowJoin(true)} data-testid="join-other-event-button"
@@ -1511,6 +1509,25 @@ export default function ParticipantDashboard() {
                                         />
                                     </label>
                                 </div>
+                            )}
+
+                            {myReg && (
+                                <Button onClick={async () => {
+                                            if (!myReg?.id) return;
+                                            const toastId = toast.loading(t("participant.buildingReport"));
+                                            try {
+                                                const { data } = await api.get(`/registrations/${myReg.id}/summary`);
+                                                await buildParticipantPdf(data);
+                                                toast.success(t("participant.reportDownloaded"), { id: toastId });
+                                            } catch (err) {
+                                                toast.error(formatApiError(err), { id: toastId });
+                                            }
+                                        }}
+                                        data-testid="event-details-report-button"
+                                        variant="ghost"
+                                        className="w-full rounded-none border border-white/20 text-white hover:bg-white/5 uppercase text-xs tracking-[0.2em] h-11">
+                                    <FileDown className="w-4 h-4 mr-2" /> {t("participant.downloadReport")}
+                                </Button>
                             )}
 
                             {myReg && (

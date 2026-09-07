@@ -109,6 +109,7 @@ const en = {
         sosButton: "SOS",
         helpButton: "Need help",
         clearButton: "Clear",
+        cancelHelpRequest: "Cancel help request",
         helpTitle: "Request help",
         helpBody: "Your team's marker will flash yellow. Add a short message so others know what you need.",
         helpDescription: "Tell other teams what happened",

@@ -109,6 +109,7 @@ const nl = {
         sosButton: "SOS",
         helpButton: "Hulp nodig",
         clearButton: "Wissen",
+        cancelHelpRequest: "Hulpverzoek annuleren",
         helpTitle: "Hulp vragen",
         helpBody: "Jouw team-marker knippert geel. Voeg een kort bericht toe zodat anderen weten wat je nodig hebt.",
         helpDescription: "Vertel andere teams wat er is gebeurd",

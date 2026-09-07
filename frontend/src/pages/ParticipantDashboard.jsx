@@ -1026,8 +1026,8 @@ export default function ParticipantDashboard() {
                      data-testid="help-controls">
                     {myReg.help_status === "help" && (
                         <button onClick={clearStatus} data-testid="clear-status-button"
-                                className="w-full max-w-md text-[10px] sm:text-xs uppercase tracking-[0.2em] sm:tracking-[0.3em] py-1 sm:py-2 border border-white/30 bg-black/60 backdrop-blur-xl hover:bg-white/10">
-                            {t("participant.clearButton")}
+                                className="w-full max-w-md text-[11px] sm:text-sm uppercase tracking-[0.2em] sm:tracking-[0.3em] font-bold py-2 sm:py-3 bg-[#34C759] hover:bg-[#2BA64B] text-white shadow-[0_0_18px_rgba(52,199,89,0.55)] transition">
+                            {t("participant.cancelHelpRequest")}
                         </button>
                     )}
                     <div className="w-full max-w-md grid grid-cols-2 gap-2 sm:gap-3">

@@ -109,6 +109,7 @@ const de = {
         sosButton: "SOS",
         helpButton: "Hilfe benötigt",
         clearButton: "Zurücksetzen",
+        cancelHelpRequest: "Hilfeanfrage abbrechen",
         helpTitle: "Hilfe anfordern",
         helpBody: "Dein Team-Marker blinkt gelb. Füge eine kurze Nachricht hinzu, damit andere wissen, was du brauchst.",
         helpDescription: "Sag anderen Teams, was passiert ist",

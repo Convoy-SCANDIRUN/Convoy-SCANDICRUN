@@ -148,6 +148,14 @@ body {
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
     line-height: 1.1;
     white-space: nowrap;
+    /* Solid dark pill behind the team-number + name so the label stays
+     * legible over any map tile — the light OSM tiles used to bleed
+     * through the text-shadow and wash it out. */
+    background: rgba(10, 10, 10, 0.78);
+    backdrop-filter: blur(2px);
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .marker-glow-help, .marker-glow-sos {

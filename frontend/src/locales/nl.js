@@ -58,6 +58,7 @@ const nl = {
     nav: {
         myEvents: "Mijn Events",
         profile: "Profiel",
+        offline: "Offline",
         newEvent: "Nieuw event",
         logout: "Uitloggen",
     },

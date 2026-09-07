@@ -58,6 +58,7 @@ const de = {
     nav: {
         myEvents: "Meine Events",
         profile: "Profil",
+        offline: "Offline",
         newEvent: "Neues Event",
         logout: "Abmelden",
     },

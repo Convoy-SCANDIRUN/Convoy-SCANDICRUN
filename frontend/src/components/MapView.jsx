@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { Crosshair, Locate, Plus, Minus, Sunrise, Sunset, Moon } from "lucide-react";
 import { sunStateAt, PHASE_STYLE, TRANSITION_KEYS } from "@/lib/sun";
+import { isRegOffline } from "@/lib/registration";
 
 /** Human-readable "N minutes ago" style label with fallbacks for missing /
  *  future timestamps. Localised via i18n keys `map.updated*`. */
@@ -28,17 +29,8 @@ const DEFAULT_ZOOM = 5;
 const FOCUS_ZOOM = 14;
 
 /** Number of seconds after the last location update at which a participant
- *  is considered offline. Chosen to survive brief network hiccups (>60s) but
- *  react before the participant scrolls far off from where they actually are. */
-const OFFLINE_AFTER_S = 180;
-function isRegOffline(reg) {
-    if (!reg || !reg.last_update) return true;
-    try {
-        const last = new Date(reg.last_update).getTime();
-        if (isNaN(last)) return true;
-        return (Date.now() - last) / 1000 > OFFLINE_AFTER_S;
-    } catch { return true; }
-}
+ *  is considered offline. Kept in sync with `lib/registration.js` — that's
+ *  the single source of truth for the offline check. */
 
 function buildIcon(reg, opts = {}) {
     const { hideSos = false, isSelf = false } = opts;

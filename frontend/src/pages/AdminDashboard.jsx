@@ -9,6 +9,7 @@ import usePush from "@/lib/usePush";
 import { useTranslation } from "react-i18next";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
 import { buildEventPdf } from "@/lib/reports";
+import { isRegOffline } from "@/lib/registration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -695,15 +696,17 @@ export default function AdminDashboard() {
                             {registrations.length === 0 && (
                                 <p className="text-xs text-zinc-500 italic">No participants yet. Share code <span className="text-[#007AFF]">{active.code}</span></p>
                             )}
-                            {registrations.map((r) => (
+                            {registrations.map((r) => {
+                                const offline = isRegOffline(r);
+                                return (
                                 <div key={r.id} data-testid={`participant-row-${r.id}`}
-                                     className={`p-3 border ${
+                                     className={`p-3 border transition ${
                                          r.help_status === "sos"
                                              ? "border-[#FF3B30] bg-[#FF3B30]/15 ring-1 ring-[#FF3B30] animate-pulse"
                                              : r.help_status === "help"
                                                  ? "border-[#FFCC00] bg-[#FFCC00]/10"
                                                  : "border-white/10"
-                                     }`}>
+                                     } ${offline ? "opacity-60" : ""}`}>
                                     <div className="flex items-center gap-3">
                                         <button type="button" onClick={() => focusOnTeam(r)}
                                                 data-testid={`focus-participant-${r.id}`}
@@ -713,18 +716,31 @@ export default function AdminDashboard() {
                                                 src={avatarUrl(r)}
                                                 alt=""
                                                 className={`w-10 h-10 rounded-full object-cover border ${
+                                                    offline ? "border-zinc-500 grayscale" :
                                                     r.help_status === "sos" ? "border-[#FF3B30] shadow-[0_0_10px_rgba(255,59,48,0.6)]" :
                                                     r.help_status === "help" ? "border-[#FFCC00]" :
-                                                    "border-white/20"
+                                                    "border-[#31A9E1] shadow-[0_0_10px_rgba(49,169,225,0.5)]"
                                                 }`}
+                                                data-testid={`participant-avatar-${r.id}`}
                                                 onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
                                             />
                                             <div className="flex-1 min-w-0">
-                                                <p className={`text-sm font-bold truncate ${r.help_status === "sos" ? "text-[#FF3B30]" : ""}`}>
+                                                <p className={`text-sm font-bold truncate ${
+                                                    r.help_status === "sos" ? "text-[#FF3B30]" : offline ? "text-zinc-400" : ""
+                                                }`}>
                                                     {r.help_status === "sos" && <span className="mr-1">🚨</span>}
                                                     #{r.team_number} · {r.team_name}
                                                 </p>
-                                                <p className="text-[11px] text-zinc-400 truncate">{r.first_name} {r.last_name}</p>
+                                                <p className="text-[11px] text-zinc-400 truncate flex items-center gap-1.5">
+                                                    {offline && (
+                                                        <span data-testid={`offline-badge-${r.id}`}
+                                                              className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-zinc-500 text-[9px] uppercase tracking-[0.15em] text-zinc-300 font-bold">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 inline-block" />
+                                                            {t("nav.offline", "Offline")}
+                                                        </span>
+                                                    )}
+                                                    <span className="truncate">{r.first_name} {r.last_name}</span>
+                                                </p>
                                             </div>
                                         </button>
                                         {r.help_status === "sos" && (
@@ -754,7 +770,8 @@ export default function AdminDashboard() {
                                         </p>
                                     )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                         )}
                     </div>

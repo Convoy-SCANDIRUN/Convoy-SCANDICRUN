@@ -76,8 +76,11 @@ function fmtTime(iso) {
  * Tile usage is friendly: max 3×3 = 9 tiles per day, fetched lazily during
  * PDF export. CartoDB doesn't require an API key for this volume.
  */
-const TILE_URL = (z, x, y) =>
-    `https://a.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`;
+const TILE_URL = (z, x, y) => {
+    const key = process.env.REACT_APP_CARTO_API_KEY || "";
+    const suffix = key ? `?key=${key}` : "";
+    return `https://a.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png${suffix}`;
+};
 const TILE_SIZE = 256;
 
 function lonToTileX(lon, z) { return ((lon + 180) / 360) * Math.pow(2, z); }

@@ -214,7 +214,7 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                    url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${process.env.REACT_APP_CARTO_API_KEY || ""}`}
                 />
                 <MapController
                     selfPosition={selfPosition}
@@ -325,28 +325,8 @@ export default function MapView({ registrations = [], height = "100%", hideSos =
                      data-testid={`sun-tint-${sun.phase}`} />
             )}
 
-            {/* Sun-status badge — top-left, small pill showing current phase
-                and time-to-next-transition. Helpful for drivers planning
-                light-sensitive stretches. */}
-            {sun && sunStyle && (
-                <div className="absolute top-14 left-3 z-[420] glass border border-white/15 px-2.5 py-1.5 flex items-center gap-2 text-white"
-                     data-testid="sun-status-badge"
-                     title={`Sunrise ${fmtHm(sun.sunrise)} · Sunset ${fmtHm(sun.sunset)}`}>
-                    <span style={{ color: sunStyle.accent }} className="flex items-center">
-                        {nextIcon}
-                    </span>
-                    <div className="text-[10px] leading-tight">
-                        <div className="uppercase tracking-wider font-bold" style={{ color: sunStyle.accent }}>
-                            {t(sunStyle.labelKey)}
-                        </div>
-                        {sun.nextKey && sun.nextInMs != null && (
-                            <div className="text-zinc-300 tabular-nums">
-                                {t(TRANSITION_KEYS[sun.nextKey])} · {fmtIn(sun.nextInMs)}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+            {/* Sun-status badge — removed per user request. The full-map
+                daylight tint below still applies. */}
 
             {/* Countdown watermark — shown when the participant has joined
                 an event that hasn't started yet. Non-interactive (pointer-events:

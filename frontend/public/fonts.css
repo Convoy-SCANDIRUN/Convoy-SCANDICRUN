@@ -1,0 +1,10 @@
+/* Official Scandic Run display font — self-hosted.
+ * Loaded via a <link rel="stylesheet"> in index.html so the URL resolves
+ * at request time from the public/ folder (not processed by webpack). */
+@font-face {
+    font-family: 'Scandic Run';
+    src: url('/fonts/ScandicRun-Regular.otf') format('opentype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}

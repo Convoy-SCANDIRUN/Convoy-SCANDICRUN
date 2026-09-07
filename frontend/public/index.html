@@ -15,17 +15,9 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
-        <!-- Official Scandic Run display font (self-hosted, kept out of the
-             webpack CSS bundle so /fonts/… resolves at runtime, not build time). -->
-        <style>
-            @font-face {
-                font-family: 'Scandic Run';
-                src: url('/fonts/ScandicRun-Regular.otf') format('opentype');
-                font-weight: 100 900;
-                font-style: normal;
-                font-display: swap;
-            }
-        </style>
+        <!-- Official Scandic Run display font (self-hosted, kept in a static
+             CSS file so the URL resolves at runtime, not build time). -->
+        <link rel="stylesheet" href="/fonts.css" />
         <!--
         manifest.json provides metadata used when your web app is installed on a
         user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/

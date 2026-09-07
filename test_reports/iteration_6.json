@@ -1,0 +1,22 @@
+{
+  "summary": "Verified FRONTEND_URL fix for POST /api/auth/forgot-password. All 4 backend pytest cases pass: (1) reset link starts with https://roadtrip-tracker-2.preview.emergentagent.com and never contains cluster-3.preview.emergentcf.cloud; (2) spoofed Origin/Referer headers (evil.example.com) are ignored — link still built from FRONTEND_URL env; (3) GET on the reset link returns HTTP 200, no 403; (4) full E2E: forgot-password -> parse link -> reset-password -> login with new password -> reset back to admin123 -> login with admin123 all succeed. Admin credentials restored to admin@roadtrip.com / admin123.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_forgot_password.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1102 lines — consider splitting into modules (auth, events, users) for maintainability.",
+    "forgot_password returns reset_link in response body when Resend delivery.sent is False — safe for dev but should be gated behind an explicit env flag (e.g. DEBUG_RETURN_RESET_LINK) so production can never accidentally leak tokens if Resend has an outage."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "n/a (frontend skipped per request)"},
+  "test_credentials": "admin@roadtrip.com / admin123 (restored)",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reset flow now uses FRONTEND_URL env var (backend/.env). If FRONTEND_URL is unset, code falls back to Origin/Referer header which yields the broken internal cluster URL — keep FRONTEND_URL set. Test file at /app/backend/tests/test_forgot_password.py can be reused; requires REACT_APP_BACKEND_URL env var when running pytest.",
+  "rca of the issue": "Original bug: reset_link built from request Origin header, which Kubernetes ingress rewrote to internal cluster host (cluster-3.preview.emergentcf.cloud) that returns 403 to external users. Fix: read FRONTEND_URL from backend/.env (https://roadtrip-tracker-2.preview.emergentagent.com) and prefer it over Origin/Referer. Verified working end-to-end."
+}

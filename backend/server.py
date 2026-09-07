@@ -315,9 +315,14 @@ async def forgot_password(body: ForgotPasswordIn, request: Request):
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
-    # Build a frontend reset link based on the request origin
-    origin = request.headers.get("origin") or request.headers.get("referer", "").rstrip("/")
-    reset_link = f"{origin}/reset-password?token={token}" if origin else f"/reset-password?token={token}"
+    # Build a frontend reset link. Prefer the explicit FRONTEND_URL env var
+    # so the link always uses the public host (the ingress rewrites Origin
+    # to an internal cluster hostname which then 403s for external users).
+    frontend_url = (os.environ.get("FRONTEND_URL") or "").rstrip("/")
+    if not frontend_url:
+        frontend_url = (request.headers.get("origin")
+                        or request.headers.get("referer", "").rstrip("/"))
+    reset_link = f"{frontend_url}/reset-password?token={token}" if frontend_url else f"/reset-password?token={token}"
     logger.info(f"[forgot-password] Reset link for {email}: {reset_link}")
 
     # Send the reset link by email via Resend. Non-fatal on failure — we still

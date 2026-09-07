@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only verification of the offline participant marker styling on the Admin Dashboard map. All four scenarios from the review request passed: (1) seeded stale participants show as offline with gray border rgb(107,114,128), box-shadow:none, opacity 0.55; (2) a fresh registration with a just-pushed location shows online with blue border rgb(0,122,255) and blue box-shadow; (3) after aging its last_update by 10 min via direct MongoDB update, the SAME marker transitions to offline styling on next poll; (4) setting help_status='help' on the stale registration keeps the marker rendered as offline (gray) and no .marker-glow-help element is present in the DOM — the animated glow is correctly suppressed for offline participants.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_offline_online.py",
+    "/app/tests/age_registration.py",
+    "/app/tests/cleanup_test_data.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MapView.jsx isRegOffline() and buildIcon() correctly gate .marker-glow-help / .marker-glow-sos rendering AND add the .offline class. The CSS rule .marker-pic.offline (and .offline.help/.sos variants) correctly wins over the status rules because it is declared later in index.css.",
+    "The offline threshold is checked at render time so it re-evaluates on the parent's ~5s poll — verified working after aging last_update.",
+    "Minor: the .marker-label also gets .offline class but only .marker-label.offline sets color; the base .marker-label declaration comes AFTER .marker-label.offline in index.css so the offline color rule may be overridden by base color:#fff. Not blocking (label color is cosmetic), but worth reviewing the CSS ordering."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "Admin admin@roadtrip.com / admin123; Participant test-share-window@rt.com / test1234",
+  "seed_data_creation": "Created TEST_offline_event(s) + one TEST_online_team registration to verify online→offline transition. All test artifacts cleaned up via /app/tests/cleanup_test_data.py (2 events + 1 registration deleted).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The offline-marker feature is fully working. Helper scripts in /app/tests/ are reusable: test_offline_online.py creates an active event + online participant with a live location; age_registration.py <reg_id> [help|sos] ages a registration's last_update to 10 min ago (and optionally sets help_status); cleanup_test_data.py removes all TEST_ prefixed events + their regs.",
+  "rca of the issue": "N/A — feature verified working as designed."
+}

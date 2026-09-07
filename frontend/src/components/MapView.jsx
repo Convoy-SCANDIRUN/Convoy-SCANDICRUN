@@ -27,6 +27,19 @@ const DEFAULT_CENTER = [48.8566, 2.3522]; // Paris fallback
 const DEFAULT_ZOOM = 5;
 const FOCUS_ZOOM = 14;
 
+/** Number of seconds after the last location update at which a participant
+ *  is considered offline. Chosen to survive brief network hiccups (>60s) but
+ *  react before the participant scrolls far off from where they actually are. */
+const OFFLINE_AFTER_S = 180;
+function isRegOffline(reg) {
+    if (!reg || !reg.last_update) return true;
+    try {
+        const last = new Date(reg.last_update).getTime();
+        if (isNaN(last)) return true;
+        return (Date.now() - last) / 1000 > OFFLINE_AFTER_S;
+    } catch { return true; }
+}
+
 function buildIcon(reg, opts = {}) {
     const { hideSos = false, isSelf = false } = opts;
     let status = reg.help_status || "normal";
@@ -36,15 +49,19 @@ function buildIcon(reg, opts = {}) {
     const labelText = `#${reg.team_number} · ${reg.team_name}`;
     const showSelf = isSelf && status === "normal";
     const label = isSelf ? `${labelText} · YOU` : labelText;
-    const glow = status === "sos" ? '<div class="marker-glow-sos"></div>'
-               : status === "help" ? '<div class="marker-glow-help"></div>'
+    // Only show help/sos glow when actually help/sos AND the participant is
+    // still online — a stale offline user shouldn't keep flashing.
+    const offline = isRegOffline(reg);
+    const glow = !offline && status === "sos" ? '<div class="marker-glow-sos"></div>'
+               : !offline && status === "help" ? '<div class="marker-glow-help"></div>'
                : "";
     const extraClass = showSelf ? " self" : "";
+    const offlineClass = offline ? " offline" : "";
     const html = `
       <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
         ${glow}
-        <img src="${pic}" width="48" height="48" class="marker-pic ${status}${extraClass}" onerror="this.onerror=null;this.src='${fallback}'" />
-        <div class="marker-label${showSelf ? ' self' : ''}">${label}</div>
+        <img src="${pic}" width="48" height="48" class="marker-pic ${status}${extraClass}${offlineClass}" onerror="this.onerror=null;this.src='${fallback}'" />
+        <div class="marker-label${showSelf ? ' self' : ''}${offline ? ' offline' : ''}">${label}</div>
       </div>`;
     return L.divIcon({
         html,

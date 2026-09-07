@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only verification of (1) the participant Participants Overview offline detection fix and (2) the participant topbar dimension bump. Both features PASS. Regression check of admin sidebar offline behaviour and admin topbar dimensions also PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_offline_online.py",
+    "/app/tests/age_registration.py",
+    "/app/tests/cleanup_test_data.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ParticipantDashboard.jsx (lines 1283-1330): isLive is correctly computed as (hasLocation && !isRegOffline(r)), so a stale participant with a lat/lng but old last_update now renders as offline. Verified end-to-end: online row shows '● live' rgb(52,199,89) opacity=1 filter=none; after aging last_update by 10min via MongoDB, the SAME row shows '○ offline' rgb(113,113,122) opacity=0.6 filter=grayscale(1). Dialog description also correctly counts 0/1 LIVE.",
+    "Participant topbar (lines 923-944) now measures: header padding 16px top/bottom, image 56×56px, event name font-size 30px, team name font-size 14px on 1440×900 desktop. .leaflet-container top = 96 (equals header bottom). All meet or exceed the required thresholds from the review.",
+    "AdminDashboard.jsx WAS touched in this commit (contrary to the review-request note): it now imports isRegOffline and adds an [data-testid=offline-badge-<id>] chip plus opacity-60 for stale participants — the change is additive and consistent with the participant-side logic, and verified to render correctly (all 5 seeded stale participants show badge + opacity 0.6). Not a bug — just flagging for docs accuracy.",
+    "Minor: participants-overview-dialog DialogDescription contains the '0/1 live · ...' text (line 1275-1277) but React devtools warns 'Missing Description or aria-describedby' for two other dialogs opened by the profile flow — worth a follow-up a11y pass but out of scope."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "Admin admin@roadtrip.com / admin123; Participant test-share-window@rt.com / test1234",
+  "seed_data_creation": "Created TEST_offline_event + one TEST_online_team registration to exercise the online→offline transition; aged its last_update via /app/tests/age_registration.py; verified both states; cleaned up via /app/tests/cleanup_test_data.py (1 event + 1 reg removed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature verified. Helper scripts under /app/tests/ remain reusable. Note: the participant has no visible 'My Events' switcher in the current UI (showEventsPanel state exists but is never opened) — 'Drive home' scenario had to be swapped for the freshly-created TEST_offline_event because the newest active event auto-selects. If future tests need explicit event switching for participants, main agent should wire a trigger for setShowEventsPanel(true).",
+  "rca of the issue": "N/A — bug fix verified working. The fix in ParticipantDashboard.jsx correctly combines hasLocation with !isRegOffline(r) (from lib/registration.js, 180s threshold), so participants whose last_update is stale are now excluded from '● live' regardless of whether they have a stored lat/lng."
+}

@@ -6,6 +6,7 @@ import InstallAppButton from "@/components/InstallAppButton";
 import NotificationsToggle from "@/components/NotificationsToggle";
 import LanguagePicker from "@/components/LanguagePicker";
 import { avatarUrl, fallbackAvatar } from "@/lib/avatar";
+import { isRegOffline } from "@/lib/registration";
 import { buildParticipantPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -914,43 +915,43 @@ export default function ParticipantDashboard() {
         );
     }
 
-    const placedCount = registrations.filter((r) => r.lat != null).length;
+    const placedCount = registrations.filter((r) => r.lat != null && !isRegOffline(r)).length;
 
     return (
         <div className="h-[100dvh] w-screen overflow-hidden bg-[#0A0A0A] text-white relative">
             {/* Topbar — fixed so it's always on screen on iOS Safari. safe-top adds env(safe-area-inset-top) padding so iOS PWA status bar doesn't overlap. */}
-            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 glass border-b border-white/10 safe-top">
+            <header className="fixed top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 glass border-b border-white/10 safe-top">
                 <button type="button" onClick={() => activeEvent && setShowEventDetails(true)}
                         disabled={!activeEvent}
                         data-testid="topbar-event-trigger"
-                        className="flex items-center gap-2 sm:gap-3 min-w-0 text-left hover:opacity-80 transition disabled:opacity-100 disabled:cursor-default">
+                        className="flex items-center gap-3 sm:gap-4 min-w-0 text-left hover:opacity-80 transition disabled:opacity-100 disabled:cursor-default">
                     {activeEvent?.image_path ? (
                         <img src={fileUrl(activeEvent.image_path)} alt=""
-                             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#007AFF]/40 flex-shrink-0"
+                             className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-[#31A9E1]/60 flex-shrink-0"
                              data-testid="topbar-event-image"
                              onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
-                        <BrandLogo className="w-8 h-8 sm:w-10 sm:h-10" />
+                        <BrandLogo className="w-12 h-12 sm:w-14 sm:h-14" />
                     )}
                     <div className="min-w-0">
-                        <p className="font-display text-sm sm:text-xl font-black uppercase leading-none truncate">
+                        <p className="font-display text-xl sm:text-3xl font-black uppercase leading-none truncate">
                             {activeEvent?.name || "Convoy"}
                         </p>
-                        <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] text-zinc-400 mt-0.5 sm:mt-1 truncate">
+                        <p className="text-[11px] sm:text-sm uppercase tracking-[0.25em] text-zinc-300 font-semibold mt-1 sm:mt-1.5 truncate">
                             {myReg ? `#${myReg.team_number} · ${myReg.team_name}` : user?.name}
                         </p>
                     </div>
                 </button>
-                <div className="flex items-center gap-1 sm:gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                     <Button variant="ghost" onClick={() => setEditProfileOpen(true)} data-testid="edit-profile-button"
-                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3"
+                            className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9 sm:h-10 px-2 sm:px-3"
                             title={t("nav.profile")}>
-                        <UserCog className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("nav.profile")}</span>
+                        <UserCog className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">{t("nav.profile")}</span>
                     </Button>
                     {!myReg && (
                         <Button variant="ghost" onClick={() => setShowJoin(true)} data-testid="join-other-event-button"
-                                className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-8 sm:h-9 px-2 sm:px-3">
-                            <Plus className="w-3 h-3 sm:mr-1" /> <span className="hidden sm:inline">{t("participant.joinEvent")}</span>
+                                className="rounded-none border border-white/15 hover:bg-white/5 uppercase text-[10px] sm:text-xs tracking-[0.2em] h-9 sm:h-10 px-2 sm:px-3">
+                            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">{t("participant.joinEvent")}</span>
                         </Button>
                     )}
                 </div>
@@ -964,7 +965,7 @@ export default function ParticipantDashboard() {
             )}
 
             {/* Map — leave room for fixed top + bottom bars */}
-            <div className={`absolute inset-0 ${eventEnded ? "pt-[92px] sm:pt-[104px]" : "pt-[60px] sm:pt-[72px]"} pb-[160px] sm:pb-[180px] pwa-map-pad-bottom`}>
+            <div className={`absolute inset-0 ${eventEnded ? "pt-[112px] sm:pt-[128px]" : "pt-[80px] sm:pt-[96px]"} pb-[160px] sm:pb-[180px] pwa-map-pad-bottom`}>
                 <MapView registrations={registrations} hideSos={true} selfId={myReg?.id} focusTarget={focusTarget}
                          countdown={countdown} countdownLabel={t("participant.countdownTitle")}
                          countdownUnits={{
@@ -1281,7 +1282,12 @@ export default function ParticipantDashboard() {
                         )}
                         {registrations.map((r) => {
                             const isMe = myReg?.id === r.id;
-                            const isLive = r.lat != null && r.lng != null;
+                            // A participant is "live" only when they have a location AND
+                            // their last update is within the offline window. This mirrors
+                            // the admin sidebar / map marker logic (lib/registration.js).
+                            const hasLocation = r.lat != null && r.lng != null;
+                            const offline = isRegOffline(r);
+                            const isLive = hasLocation && !offline;
                             return (
                                 <button key={r.id} data-testid={`overview-row-${r.id}`}
                                      type="button"
@@ -1295,11 +1301,13 @@ export default function ParticipantDashboard() {
                                     <img
                                         src={avatarUrl(r)}
                                         alt=""
-                                        className="w-10 h-10 rounded-full object-cover border border-white/20 flex-shrink-0"
+                                        className={`w-10 h-10 rounded-full object-cover border flex-shrink-0 ${
+                                            !isLive ? "border-zinc-500 grayscale" : "border-white/20"
+                                        }`}
                                         onError={(e) => { e.target.onerror = null; e.target.src = fallbackAvatar(r); }}
                                     />
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold truncate">
+                                        <p className={`text-sm font-bold truncate ${!isLive ? "text-zinc-400" : ""}`}>
                                             #{r.team_number} · {r.team_name}
                                             {isMe && <span className="ml-2 text-[10px] uppercase text-[#34C759] tracking-[0.2em]" aria-label="You">· you</span>}
                                         </p>
@@ -1309,9 +1317,10 @@ export default function ParticipantDashboard() {
                                         )}
                                     </div>
                                     <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                                        <span className={`text-[10px] uppercase tracking-wider font-bold ${
-                                            isLive ? "text-[#34C759]" : "text-zinc-500"
-                                        }`}>
+                                        <span data-testid={`overview-status-${r.id}`}
+                                              className={`text-[10px] uppercase tracking-wider font-bold ${
+                                                  isLive ? "text-[#34C759]" : "text-zinc-500"
+                                              }`}>
                                             {isLive ? "● live" : "○ offline"}
                                         </span>
                                         {r.help_status === "help" && (

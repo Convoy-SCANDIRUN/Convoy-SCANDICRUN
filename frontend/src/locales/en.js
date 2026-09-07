@@ -229,6 +229,7 @@ const en = {
         dispatchLastPosition: "Last known position",
         dispatchOpenNav: "Open in",
         dispatchClear: "Clear status",
+        cancelHelpRequest: "Cancel help request",
         dispatchClearBody: "Confirm that the situation is resolved.",
         dispatchDismiss: "Dismiss (keep flag)",
         activeSosBanner: "🚨 SOS active — {{team}}",

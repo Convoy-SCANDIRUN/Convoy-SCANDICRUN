@@ -229,6 +229,7 @@ const nl = {
         dispatchLastPosition: "Laatst bekende positie",
         dispatchOpenNav: "Open in",
         dispatchClear: "Status wissen",
+        cancelHelpRequest: "Hulpverzoek annuleren",
         dispatchClearBody: "Bevestig dat de situatie is opgelost.",
         dispatchDismiss: "Sluiten (vlag behouden)",
         activeSosBanner: "🚨 SOS actief — {{team}}",

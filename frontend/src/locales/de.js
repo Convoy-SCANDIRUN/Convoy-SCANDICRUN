@@ -229,6 +229,7 @@ const de = {
         dispatchLastPosition: "Letzte bekannte Position",
         dispatchOpenNav: "Öffnen in",
         dispatchClear: "Status zurücksetzen",
+        cancelHelpRequest: "Hilfe­anfrage abbrechen",
         dispatchClearBody: "Bestätige, dass die Situation gelöst ist.",
         dispatchDismiss: "Ausblenden (Status behalten)",
         activeSosBanner: "🚨 SOS aktiv — {{team}}",

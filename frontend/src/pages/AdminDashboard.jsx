@@ -753,8 +753,12 @@ export default function AdminDashboard() {
                                         {(r.help_status === "help" || r.help_status === "sos") && (
                                             <button onClick={() => clearStatus(r.id)}
                                                     data-testid={`clear-status-${r.id}`}
-                                                    className="text-[10px] uppercase tracking-wider px-2 py-1 border border-white/20 hover:bg-white/10">
-                                                Clear
+                                                    className={
+                                                        r.help_status === "help"
+                                                            ? "text-[10px] uppercase tracking-wider px-2 py-1 bg-[#34C759] hover:bg-[#2BA64B] text-white font-bold border border-[#34C759]"
+                                                            : "text-[10px] uppercase tracking-wider px-2 py-1 border border-white/20 hover:bg-white/10"
+                                                    }>
+                                                {r.help_status === "help" ? t("admin.cancelHelpRequest") : t("common.clear", "Clear")}
                                             </button>
                                         )}
                                         <button onClick={() => askDeleteReg(r)}

@@ -14,6 +14,7 @@ import bcrypt
 import jwt as pyjwt
 import asyncio
 import json as _json
+import resend
 from pywebpush import webpush, WebPushException
 from datetime import datetime, timezone, timedelta, date as date_cls
 from math import radians, sin, cos, atan2, sqrt
@@ -220,6 +221,62 @@ async def delete_me(response: Response, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 # ---------- Password Reset ----------
+
+# Configure Resend once at import time. If the key is missing the helper
+# just returns sent=False so the flow degrades gracefully in dev.
+_RESEND_API_KEY = os.environ.get("RESEND_API_KEY") or ""
+_RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL") or ""
+_RESEND_FROM_NAME = os.environ.get("RESEND_FROM_NAME") or "Scandic Run"
+if _RESEND_API_KEY:
+    resend.api_key = _RESEND_API_KEY
+
+def _password_reset_email_html(name: str, reset_link: str) -> str:
+    """On-brand HTML email in the Scandic Run cyan/white palette.
+    Inline styles + table layout so it renders correctly across clients."""
+    greet = f"Hi {name}," if name else "Hi there,"
+    return f"""<!DOCTYPE html>
+    <html><body style="margin:0;padding:0;background:#f4f7fa;font-family:'Helvetica Neue',Arial,sans-serif;color:#0e1a24;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fa;padding:32px 12px;">
+        <tr><td align="center">
+          <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;box-shadow:0 4px 24px rgba(14,26,36,0.06);overflow:hidden;">
+            <tr><td style="background:#31A9E1;padding:20px 28px;color:#ffffff;font-size:11px;letter-spacing:0.35em;text-transform:uppercase;font-weight:700;">Scandic Run · Convoy Tracker</td></tr>
+            <tr><td style="padding:32px 28px 8px;">
+              <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:#0e1a24;">Reset your password</h1>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#3b4a58;">{greet}</p>
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#3b4a58;">We got a request to reset the password on your Scandic Run Convoy Tracker account. Tap the button below to choose a new one. This link is valid for <strong>1 hour</strong>.</p>
+              <p style="margin:0 0 28px;text-align:center;">
+                <a href="{reset_link}" style="display:inline-block;background:#31A9E1;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:999px;font-weight:700;letter-spacing:0.05em;font-size:15px;">Reset password</a>
+              </p>
+              <p style="margin:0 0 8px;font-size:12px;line-height:1.5;color:#6b7c8a;">Or copy and paste this link into your browser:</p>
+              <p style="margin:0 0 24px;font-size:12px;line-height:1.5;color:#31A9E1;word-break:break-all;"><a href="{reset_link}" style="color:#31A9E1;text-decoration:none;">{reset_link}</a></p>
+              <p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #eef2f5;font-size:12px;line-height:1.55;color:#6b7c8a;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+            </td></tr>
+            <tr><td style="padding:20px 28px 28px;font-size:11px;letter-spacing:0.25em;text-transform:uppercase;color:#9ba9b6;text-align:center;">Scandic Run · scandicrun.com</td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </body></html>"""
+
+async def _send_password_reset_email(to_email: str, reset_link: str, name: str = "") -> dict:
+    """Send the reset link via Resend. Returns `{sent: bool, id?, error?}`.
+    Never raises — the caller only logs the outcome."""
+    if not _RESEND_API_KEY or not _RESEND_FROM_EMAIL:
+        return {"sent": False, "error": "resend_not_configured"}
+    params = {
+        "from": f"{_RESEND_FROM_NAME} <{_RESEND_FROM_EMAIL}>",
+        "to": [to_email],
+        "subject": "Reset your Scandic Run password",
+        "html": _password_reset_email_html(name, reset_link),
+    }
+    try:
+        # Resend SDK is synchronous — offload to a thread so the event loop
+        # keeps serving other requests.
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        return {"sent": True, "id": (result or {}).get("id")}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[resend] failed to send reset email to {to_email}: {e}")
+        return {"sent": False, "error": str(e)}
+
 @api_router.post("/auth/forgot-password")
 async def forgot_password(body: ForgotPasswordIn, request: Request):
     email = body.email.lower()
@@ -245,10 +302,19 @@ async def forgot_password(body: ForgotPasswordIn, request: Request):
     reset_link = f"{origin}/reset-password?token={token}" if origin else f"/reset-password?token={token}"
     logger.info(f"[forgot-password] Reset link for {email}: {reset_link}")
 
-    # NOTE: No email provider wired yet — return the link directly so users
-    # can complete reset during MVP/testing. Replace this with email sending
-    # once an email integration (Resend/SendGrid) is added.
-    return {"ok": True, "reset_link": reset_link}
+    # Send the reset link by email via Resend. Non-fatal on failure — we still
+    # return ok so we don't leak whether the email exists, but we DO surface
+    # the delivery outcome so admins can see it in logs.
+    delivery = await _send_password_reset_email(email, reset_link, user.get("name") or "")
+    logger.info(f"[forgot-password] email delivery for {email}: {delivery}")
+
+    # In production, the reset link is delivered by email only. During local
+    # development or when Resend isn't configured, we return it in the body
+    # so the flow can still be completed manually.
+    resp: dict = {"ok": True}
+    if not delivery.get("sent"):
+        resp["reset_link"] = reset_link
+    return resp
 
 @api_router.post("/auth/reset-password")
 async def reset_password(body: ResetPasswordIn):

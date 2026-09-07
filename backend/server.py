@@ -232,16 +232,34 @@ if _RESEND_API_KEY:
 
 def _password_reset_email_html(name: str, reset_link: str) -> str:
     """On-brand HTML email in the Scandic Run cyan/white palette.
-    Inline styles + table layout so it renders correctly across clients."""
+    Inline styles + table layout so it renders correctly across clients.
+    The display font is loaded via @font-face from the app's public URL
+    with a graceful Georgia fallback for email clients that block webfonts."""
     greet = f"Hi {name}," if name else "Hi there,"
+    # The font URL points at the same origin as the reset link so users see
+    # a consistent brand across email + web.
+    try:
+        origin = reset_link.split("/reset-password")[0]
+    except Exception:  # noqa: BLE001
+        origin = ""
+    font_url = f"{origin}/fonts/ScandicRun-Regular.otf" if origin else ""
     return f"""<!DOCTYPE html>
-    <html><body style="margin:0;padding:0;background:#f4f7fa;font-family:'Helvetica Neue',Arial,sans-serif;color:#0e1a24;">
+    <html><head>
+      <meta charset="utf-8" />
+      <style>
+        @font-face {{
+          font-family: 'Scandic Run';
+          src: url('{font_url}') format('opentype');
+          font-weight: 400; font-style: normal;
+        }}
+      </style>
+    </head><body style="margin:0;padding:0;background:#f4f7fa;font-family:'Helvetica Neue',Arial,sans-serif;color:#0e1a24;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fa;padding:32px 12px;">
         <tr><td align="center">
           <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;box-shadow:0 4px 24px rgba(14,26,36,0.06);overflow:hidden;">
-            <tr><td style="background:#31A9E1;padding:20px 28px;color:#ffffff;font-size:11px;letter-spacing:0.35em;text-transform:uppercase;font-weight:700;">Scandic Run · Convoy Tracker</td></tr>
+            <tr><td style="background:#31A9E1;padding:22px 28px;color:#ffffff;font-family:'Scandic Run','Georgia',serif;font-size:22px;letter-spacing:0.15em;text-transform:uppercase;font-weight:400;">Scandic Run</td></tr>
             <tr><td style="padding:32px 28px 8px;">
-              <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:#0e1a24;">Reset your password</h1>
+              <h1 style="margin:0 0 16px;font-family:'Scandic Run','Georgia',serif;font-size:32px;line-height:1.15;color:#0e1a24;text-transform:uppercase;letter-spacing:0.03em;font-weight:400;">Reset your password</h1>
               <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#3b4a58;">{greet}</p>
               <p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#3b4a58;">We got a request to reset the password on your Scandic Run Convoy Tracker account. Tap the button below to choose a new one. This link is valid for <strong>1 hour</strong>.</p>
               <p style="margin:0 0 28px;text-align:center;">
@@ -251,7 +269,7 @@ def _password_reset_email_html(name: str, reset_link: str) -> str:
               <p style="margin:0 0 24px;font-size:12px;line-height:1.5;color:#31A9E1;word-break:break-all;"><a href="{reset_link}" style="color:#31A9E1;text-decoration:none;">{reset_link}</a></p>
               <p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #eef2f5;font-size:12px;line-height:1.55;color:#6b7c8a;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
             </td></tr>
-            <tr><td style="padding:20px 28px 28px;font-size:11px;letter-spacing:0.25em;text-transform:uppercase;color:#9ba9b6;text-align:center;">Scandic Run · scandicrun.com</td></tr>
+            <tr><td style="padding:20px 28px 28px;font-family:'Scandic Run','Georgia',serif;font-size:14px;letter-spacing:0.28em;text-transform:uppercase;color:#9ba9b6;text-align:center;">Scandic Run · scandicrun.com</td></tr>
           </table>
         </td></tr>
       </table>

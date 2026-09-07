@@ -3,9 +3,49 @@ import autoTable from "jspdf-autotable";
 
 /* ---------- helpers ---------- */
 const FONT_SANS = "helvetica";
-const C_PRIMARY = "#007AFF";
+const FONT_DISPLAY = "ScandicRun";
+const C_PRIMARY = "#31A9E1";
 const C_TEXT = "#0A0A0A";
 const C_MUTED = "#6B7280";
+
+/** Cached base64 of the Scandic Run TTF so we only fetch it once. */
+let _scandicRunB64 = null;
+async function _loadScandicRunFontB64() {
+    if (_scandicRunB64 !== null) return _scandicRunB64;
+    try {
+        const resp = await fetch("/fonts/ScandicRun-Regular.ttf");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const buf = await resp.arrayBuffer();
+        // Convert ArrayBuffer -> base64 (chunked to avoid stack overflow on
+        // large buffers, even though our font is small).
+        let binary = "";
+        const bytes = new Uint8Array(buf);
+        const CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+        }
+        _scandicRunB64 = btoa(binary);
+    } catch (e) {
+        console.warn("[reports] Scandic Run font unavailable, falling back to Helvetica:", e);
+        _scandicRunB64 = "";
+    }
+    return _scandicRunB64;
+}
+
+/** Register Scandic Run on a new jsPDF instance. Returns the font name to
+ *  use for display text; falls back to Helvetica bold when unavailable. */
+async function _registerDisplayFont(doc) {
+    const b64 = await _loadScandicRunFontB64();
+    if (!b64) return FONT_SANS;
+    try {
+        doc.addFileToVFS("ScandicRun-Regular.ttf", b64);
+        doc.addFont("ScandicRun-Regular.ttf", FONT_DISPLAY, "normal");
+        return FONT_DISPLAY;
+    } catch (e) {
+        console.warn("[reports] jsPDF rejected Scandic Run font:", e);
+        return FONT_SANS;
+    }
+}
 
 function fmtKm(v) {
     if (v == null || isNaN(v)) return "—";
@@ -241,13 +281,17 @@ function routePreviewPng(route, width = 720, height = 360) {
 }
 
 /* ---------- PDF header / footer ---------- */
-function header(doc, title, subtitle) {
+function header(doc, title, subtitle, displayFont = FONT_SANS) {
     doc.setFillColor(C_PRIMARY);
     doc.rect(0, 0, doc.internal.pageSize.getWidth(), 18, "F");
     doc.setTextColor("#fff");
-    doc.setFont(FONT_SANS, "bold");
-    doc.setFontSize(14);
-    doc.text(title, 14, 12);
+    if (displayFont === FONT_SANS) {
+        doc.setFont(FONT_SANS, "bold");
+    } else {
+        doc.setFont(displayFont, "normal");
+    }
+    doc.setFontSize(16);
+    doc.text(title.toUpperCase(), 14, 12);
     if (subtitle) {
         doc.setFont(FONT_SANS, "normal");
         doc.setFontSize(9);
@@ -263,7 +307,7 @@ function footer(doc) {
         doc.setFontSize(8);
         doc.setTextColor(C_MUTED);
         doc.text(
-            `Convoy report · generated ${new Date().toLocaleString()}`,
+            `Scandic Run · Convoy report · ${new Date().toLocaleString()}`,
             14, doc.internal.pageSize.getHeight() - 8
         );
         doc.text(
@@ -274,19 +318,27 @@ function footer(doc) {
     }
 }
 
+/** Section-title helper — uses the Scandic Run display font when available. */
+function sectionTitle(doc, text, x, y, displayFont) {
+    if (displayFont === FONT_SANS) doc.setFont(FONT_SANS, "bold");
+    else doc.setFont(displayFont, "normal");
+    doc.setFontSize(18);
+    doc.setTextColor(C_TEXT);
+    doc.text(text.toUpperCase(), x, y);
+}
+
 /* ---------- Participant summary PDF ---------- */
 export async function buildParticipantPdf(summary) {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const displayFont = await _registerDisplayFont(doc);
     const W = doc.internal.pageSize.getWidth();
     const { registration: r, event, total, daily } = summary;
-    const title = `${event.name} — Team ${r.team_number} · ${r.team_name}`;
+    const title = `${event.name} — Team #${r.team_number} · ${r.team_name}`;
     const sub = `${event.start_date} → ${event.end_date}`;
-    header(doc, title, sub);
+    header(doc, title, sub, displayFont);
 
     let y = 26;
-    doc.setFont(FONT_SANS, "bold");
-    doc.setFontSize(18);
-    doc.text("Event summary", 14, y);
+    sectionTitle(doc, "Event summary", 14, y, displayFont);
     y += 6;
     doc.setFont(FONT_SANS, "normal");
     doc.setFontSize(10);
@@ -339,7 +391,7 @@ export async function buildParticipantPdf(summary) {
     // logged point, so a single render here covers the entire trip.
     if (total.route && total.route.length >= 2) {
         doc.addPage();
-        header(doc, "Event overview map", `${r.team_name} · #${r.team_number}`);
+        header(doc, "Event overview map", `${r.team_name} · #${r.team_number}`, displayFont);
         let overviewPng = null;
         try { overviewPng = await routeOnRealMapPng(total.route, 1400, 700); }
         catch (_) { /* fall through */ }
@@ -366,7 +418,7 @@ export async function buildParticipantPdf(summary) {
     for (const d of daily) {
         if (!d.route || d.route.length < 2) continue;
         doc.addPage();
-        header(doc, `Day ${d.date}`, `${r.team_name} · #${r.team_number}`);
+        header(doc, `Day ${d.date}`, `${r.team_name} · #${r.team_number}`, displayFont);
         let png = null;
         try { png = await routeOnRealMapPng(d.route, 1200, 600); }
         catch (_) { /* fall through */ }
@@ -398,14 +450,13 @@ const TEAM_COLORS = [
 ];
 export async function buildEventPdf(summary) {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const displayFont = await _registerDisplayFont(doc);
     const W = doc.internal.pageSize.getWidth();
     const { event, days, teams } = summary;
-    header(doc, `${event.name} — Admin report`, `${event.start_date} → ${event.end_date}`);
+    header(doc, `${event.name} — Admin report`, `${event.start_date} → ${event.end_date}`, displayFont);
 
     let y = 26;
-    doc.setFont(FONT_SANS, "bold");
-    doc.setFontSize(18);
-    doc.text("Leaderboard", 14, y);
+    sectionTitle(doc, "Leaderboard", 14, y, displayFont);
     y += 6;
     doc.setFont(FONT_SANS, "normal");
     doc.setFontSize(10);
@@ -441,7 +492,7 @@ export async function buildEventPdf(summary) {
         .filter((x) => x.route.length >= 2);
     if (teamsWithRoutes.length > 0) {
         doc.addPage();
-        header(doc, "Event overview map", `${teamsWithRoutes.length} team${teamsWithRoutes.length === 1 ? "" : "s"}`);
+        header(doc, "Event overview map", `${teamsWithRoutes.length} team${teamsWithRoutes.length === 1 ? "" : "s"}`, displayFont);
         let overviewPng = null;
         try {
             overviewPng = await multiRouteOnRealMapPng(
@@ -477,7 +528,7 @@ export async function buildEventPdf(summary) {
         if (!t.total.route || t.total.route.length < 2) continue;
         doc.addPage();
         header(doc, `#${t.team_number} · ${t.team_name}`,
-               `${(t.first_name || "") + " " + (t.last_name || "")}`.trim() || event.name);
+               `${(t.first_name || "") + " " + (t.last_name || "")}`.trim() || event.name, displayFont);
         let teamPng = null;
         try { teamPng = await routeOnRealMapPng(t.total.route, 1400, 700); }
         catch (_) { /* fall through */ }
@@ -514,7 +565,7 @@ export async function buildEventPdf(summary) {
     // overlaid on a single map so the admin can compare paths.
     for (const day of days) {
         doc.addPage();
-        header(doc, `Day ${day}`, event.name);
+        header(doc, `Day ${day}`, event.name, displayFont);
         const dayRoutes = teams
             .map((t, i) => {
                 const d = t.daily.find((x) => x.date === day);

@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
 
+/* Official Scandic Run display font — declared in public/index.html so
+ * webpack/css-loader doesn't try to bundle the URL. Kept here as a note. */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,7 +18,8 @@ body {
 }
 
 .font-display {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Scandic Run', 'Barlow Condensed', sans-serif;
+    letter-spacing: 0.02em;
 }
 
 @layer base {
@@ -177,7 +181,7 @@ body {
 .leaflet-popup-content { margin: 12px 14px !important; min-width: 180px; }
 .leaflet-popup-close-button { color: #999 !important; }
 .rt-popup-inner { font-family: 'Inter', sans-serif; }
-.rt-popup-title { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 2px 0 !important; }
+.rt-popup-title { font-family: 'Scandic Run', 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 2px 0 !important; }
 .rt-popup-sub { font-size: 11px; color: #A1A1AA; margin: 0 !important; }
 .rt-popup-time { font-size: 10px; color: #6B7280; margin: 4px 0 0 0 !important; letter-spacing: 0.05em; text-transform: uppercase; }
 .rt-popup-help { font-size: 11px; color: #FFCC00; margin: 8px 0 0 0 !important; font-style: italic; line-height: 1.35; }

@@ -207,8 +207,13 @@ export default function AdminDashboard() {
             <html><head><meta charset="utf-8" /><title>${shareEvent.name} — Join Poster</title>
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-            <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
             <style>
+                @font-face {
+                    font-family: 'Scandic Run';
+                    src: url('${window.location.origin}/fonts/ScandicRun-Regular.otf') format('opentype');
+                    font-weight: 100 900; font-style: normal;
+                }
                 @page { size: A4 portrait; margin: 0; }
                 * { box-sizing: border-box; }
                 html, body { margin: 0; padding: 0; background: #fff; }
@@ -230,16 +235,16 @@ export default function AdminDashboard() {
                 }
                 .brand-logo { width: 22mm; height: 22mm; object-fit: contain; }
                 .brand-name {
-                    font-family: 'Cinzel', serif; font-weight: 900;
-                    font-size: 22pt; letter-spacing: 0.08em;
+                    font-family: 'Scandic Run', 'Helvetica Neue', sans-serif; font-weight: 400;
+                    font-size: 26pt; letter-spacing: 0.06em;
                     color: #0e1a24; text-transform: uppercase;
                 }
                 .divider { width: 40mm; height: 1.2mm; background: #31A9E1; margin: 0 auto 8mm; }
                 .kicker { font-size: 9pt; letter-spacing: 0.45em; color: #31A9E1; font-weight: 700; text-transform: uppercase; margin-bottom: 4mm; }
                 .event-image { width: 36mm; height: 36mm; border-radius: 50%; object-fit: cover; border: 3px solid #31A9E1; margin-bottom: 6mm; }
                 h1 {
-                    font-family: 'Cinzel', serif; font-weight: 900;
-                    font-size: 36pt; letter-spacing: 0.02em;
+                    font-family: 'Scandic Run', 'Helvetica Neue', sans-serif; font-weight: 400;
+                    font-size: 42pt; letter-spacing: 0.03em;
                     margin: 0 0 4mm; text-transform: uppercase; line-height: 1.0;
                     max-width: 170mm; color: #0e1a24;
                 }
@@ -253,8 +258,8 @@ export default function AdminDashboard() {
                 .code-pill {
                     display: inline-block; background: #31A9E1; color: #ffffff;
                     padding: 5mm 12mm; border-radius: 999px; margin-bottom: 10mm;
-                    font-family: 'Inter', sans-serif; font-weight: 800;
-                    font-size: 34pt; letter-spacing: 0.18em;
+                    font-family: 'Scandic Run', 'Inter', sans-serif; font-weight: 400;
+                    font-size: 38pt; letter-spacing: 0.18em;
                     box-shadow: 0 0.6mm 0 rgba(0,0,0,0.05);
                 }
                 .qr-frame {
